@@ -94,6 +94,7 @@ export class CatalogPage {
     this.editing.set(value);
     this.extra.set("");
     this.operations.set([]);
+    this.operation = -1;
     this.scheduleDates.set([]);
     this.frequency =
       value["cron"] === "0 8 * * 1"
@@ -195,6 +196,7 @@ export class CatalogPage {
         url: this.openapiUrl,
       });
       this.operations.set(result.operations);
+      this.operation = -1;
       this.extra.set(pretty(result.schemas));
     } catch (e) {
       this.api.fail(e);

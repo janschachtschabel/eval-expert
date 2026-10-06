@@ -10,6 +10,7 @@ aside {
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
   background: #eaf0eb;
   padding: 30px 16px 20px;
   display: flex;

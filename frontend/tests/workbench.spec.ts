@@ -43,6 +43,9 @@ test("schedule presets preview future dates and retain the configuration", async
     .getByRole("button", { name: "Nächste Termine", exact: true })
     .click();
   await expect(page.locator(".editor li")).toHaveCount(5);
+  await page.getByLabel("Zeitzone", { exact: true }).fill("Europe/");
+  await expect(page.locator(".editor li")).toHaveCount(0);
+  await page.getByLabel("Zeitzone", { exact: true }).fill("Europe/Berlin");
   await page.getByRole("button", { name: "Speichern", exact: true }).click();
   const card = page
     .getByRole("article")
@@ -144,6 +147,19 @@ test("local login, reference run, evidence, export and responsive navigation", a
     path: "../artifacts/desktop-run.png",
     fullPage: false,
   });
+  await page.setViewportSize({ width: 375, height: 420 });
+  await page
+    .getByRole("button", { name: "Navigation öffnen", exact: true })
+    .click();
+  const logout = page
+    .locator("aside.open")
+    .getByRole("button", { name: "Abmelden", exact: true });
+  await logout.scrollIntoViewIfNeeded();
+  await expect(logout).toBeInViewport();
+  await logout.click();
+  await expect(
+    page.getByRole("button", { name: "Anmelden", exact: true }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
   expect(externalAssets).toEqual([]);
 });
@@ -186,4 +202,99 @@ test("criteria and dataset can be created with ordinary forms", async ({
   await expect(
     page.getByRole("heading", { name: "Browserprüfung Daten " + suffix }),
   ).toBeVisible();
+});
+
+test("a delayed previous run cannot replace the current run after back navigation", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("Benutzername").fill("admin");
+  await page
+    .getByLabel("Passwort", { exact: true })
+    .fill(process.env["EVAL_TEST_PASSWORD"] || "Test-password-for-browser!");
+  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Überblick", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Demo einrichten" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Prüfprofile", exact: true }),
+  ).toBeVisible();
+  const session = await (await page.request.get("/api/auth/session")).json();
+  const profiles = await (await page.request.get("/api/catalog/plans")).json();
+  const profile = profiles.find(
+    (plan: any) => plan.name === "Demo · Metadaten prüfen",
+  );
+  for (let i = 0; i < 2; i++) {
+    const response = await page.request.post("/api/runs", {
+      data: { plan_id: profile.id },
+      headers: { "X-CSRF-Token": session.csrf_token },
+    });
+    expect(response.ok()).toBe(true);
+    const created = await response.json();
+    await expect
+      .poll(
+        async () =>
+          (await (await page.request.get("/api/runs/" + created.id)).json())
+            .status,
+        { timeout: 30000 },
+      )
+      .toBe("completed");
+  }
+  const runs = await (await page.request.get("/api/runs")).json();
+  const completed = runs.filter((run: any) => run.status === "completed");
+  const current = completed[0];
+  const previous = completed.find(
+    (run: any) =>
+      run.id !== current.id && run.comparison_key === current.comparison_key,
+  );
+  expect(previous).toBeTruthy();
+  await page.goto("/runs/" + current.id);
+  const history = page.locator(".result-section").filter({
+    has: page.getByRole("heading", {
+      name: "Vergleichbarer Verlauf",
+      exact: true,
+    }),
+  });
+  await history.locator("summary").click();
+  let release!: () => void;
+  let started!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requested = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route("**/api/runs/" + previous.id, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.snapshot.plan.name = "Delayed previous run";
+    started();
+    await pending;
+    await route.fulfill({ response, json: body });
+  });
+  await history.locator('a[href="/runs/' + previous.id + '"]').click();
+  await requested;
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp("/runs/" + current.id + "$"));
+  await expect(
+    page.getByRole("heading", { name: current.name, exact: true }),
+  ).toBeVisible();
+  const oldResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/api/runs/" + previous.id),
+  );
+  release();
+  await (await oldResponse).finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(
+    page.getByRole("heading", { name: current.name, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Delayed previous run", exact: true }),
+  ).toHaveCount(0);
 });

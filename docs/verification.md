@@ -9,17 +9,18 @@ datasets were unavailable; network tests use explicit simulated HTTP boundaries.
 | Backend lint and format | Ruff check and format check pass |
 | Backend behavior | 28 pytest tests pass under Python 3.12 |
 | Frontend production build | Angular 21 build passes locally and in the Docker build |
-| Browser flows against Docker | 3 Chromium/Playwright tests pass |
+| Browser flows against Docker | 4 Chromium/Playwright tests pass |
 | Reference flow | Actual 12-case local classifier run, result tables, case dialog and CSV download |
 | Configuration flows | Criteria and JSONL dataset creation; daily schedule, five future dates, persisted configuration and deletion |
 | Accessibility sample | axe finds zero violations for WCAG A/AA tags on the tested result page |
-| Responsive sample | Result page at 375px and 320px has no document-level horizontal overflow; tables scroll internally |
+| Responsive sample | Result page at 375px and 320px has no document-level horizontal overflow; tables scroll internally; logout remains reachable with a 420px viewport height |
+| Delayed navigation | A delayed previous-run response cannot overwrite the current run after SPA back navigation; the regression fails before the correction |
 | Local assets | Browser flow records no external font, stylesheet, script or image request |
 | Production dependencies | npm audit reports 0 vulnerabilities; pip-audit reports no known vulnerabilities after the cryptography upgrade |
 | Docker runtime | One container starts and serves health/API/UI as uid/gid 10001, with a read-only root filesystem and a named data volume |
 | Persistence | After container restart, counts remain identical: 1 user, 10 catalog entries, 11 versions, 2 runs and 24 results |
 | Observed idle memory | 154.3 MiB on the local Docker host; this is not a capacity or hosting guarantee |
-| Independent review | No critical or major backend/deployment finding remains; details in review.md |
+| Independent review | No critical or major backend, frontend or deployment finding remains; details in review.md |
 | Secret exclusion | .env and .agents/skills are ignored; credentials are not part of saved public run snapshots or exports |
 
 ## Reproduce

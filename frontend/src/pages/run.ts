@@ -21,11 +21,16 @@ export class RunPage {
   pretty = pretty;
   id = "";
   selectedField = "";
+  private loadGeneration = 0;
+  private loadingRunId: string | null = null;
   constructor() {
     const interval = setInterval(() => {
       if (this.active()) this.load();
     }, 2000);
-    inject(DestroyRef).onDestroy(() => clearInterval(interval));
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(interval);
+      this.loadGeneration++;
+    });
     this.route.params.subscribe((params) => {
       this.id = params["id"];
       this.selectedField = "";
@@ -35,14 +40,21 @@ export class RunPage {
     });
   }
   async load() {
+    const id = this.id;
+    if (this.loadingRunId === id) return;
+    const generation = ++this.loadGeneration;
+    this.loadingRunId = id;
+    const current = () => id === this.id && generation === this.loadGeneration;
     try {
-      this.run.set(await this.api.request("/runs/" + this.id));
+      const r = await this.api.request("/runs/" + id);
+      if (!current()) return;
+      this.run.set(r);
       if (!this.selectedField)
         this.selectedField =
           this.run()?.["snapshot"]["plan"]["fields"][0]?.name || "__judge";
       if (!this.active()) {
         const all = await this.api.request<Item[]>("/runs");
-        const r = this.run()!;
+        if (!current()) return;
         this.history.set(
           all
             .filter(
@@ -55,7 +67,9 @@ export class RunPage {
         );
       }
     } catch (e) {
-      this.api.fail(e);
+      if (current()) this.api.fail(e);
+    } finally {
+      if (current()) this.loadingRunId = null;
     }
   }
   active() {

@@ -4,6 +4,19 @@ An independent read-only review used better-coding-review and covered all backen
 Docker/Compose in responsibility-sized passes. Generated assets, dependencies and lockfiles were
 excluded. No critical or major backend/deployment finding remained after corrections.
 
+A further read-only pass covered all frontend files, browser tests, CI, README and the current plan.
+The following UI findings were corrected and rechecked in source; browser evidence is recorded in
+verification.md.
+
+| UI finding | Correction and evidence |
+| --- | --- |
+| A delayed run response could overwrite a different route's run | Capture route id and request generation, discard stale results/errors, serialize polls; delayed-response browser regression |
+| Reopened OpenAPI editor retained an old operation index | Reset selection when opening an editor or loading a document |
+| Editing cron/timezone left stale preview dates | Clear preview immediately on either edit; browser checks an incomplete time zone |
+| Mobile navigation cut off lower links/logout in short windows | Scrollable navigation rail; browser reaches and uses logout at 420px height |
+
+No critical or major finding remains in the reviewed first-delivery scope.
+
 | Verified finding | Correction and evidence |
 | --- | --- |
 | JSON Schema remote references bypassed endpoint policy | Local references only, explicit empty registry; regression records zero remote retrievals |

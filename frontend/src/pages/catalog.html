@@ -439,7 +439,12 @@
             >
             <mat-form-field
               ><mat-label>{{ "cron" | t }}</mat-label
-              ><input matInput name="cron" [(ngModel)]="f['cron']" required
+              ><input
+                matInput
+                name="cron"
+                [(ngModel)]="f['cron']"
+                (ngModelChange)="scheduleDates.set([])"
+                required
             /></mat-form-field>
             <mat-form-field
               ><mat-label>{{ "timezone" | t }}</mat-label
@@ -447,6 +452,7 @@
                 matInput
                 name="timezone"
                 [(ngModel)]="f['timezone']"
+                (ngModelChange)="scheduleDates.set([])"
                 required
             /></mat-form-field>
             <mat-checkbox name="enabled" [(ngModel)]="f['enabled']">{{

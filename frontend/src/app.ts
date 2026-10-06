@@ -162,7 +162,8 @@ export class App {
       await this.api.request("/auth/logout", "POST");
       this.api.user.set(null);
       this.api.csrf = "";
-      await this.router.navigateByUrl("/");
+      this.api.error.set("");
+      this.navOpen.set(false);
     } catch (e) {
       this.api.fail(e);
     }
