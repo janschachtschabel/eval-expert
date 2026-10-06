@@ -1,0 +1,89 @@
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, Response
+
+from .auth import current_user, editors
+from .exports import csv_export, report
+from .run_store import enqueue, list_runs, read_run, snapshot
+
+router = APIRouter(prefix="/runs")
+
+
+def find(request, id):
+    try:
+        return read_run(request.app.state.db, id)
+    except KeyError as error:
+        raise HTTPException(404, "Run not found.") from error
+
+
+@router.get("")
+def list_all(request: Request, user=Depends(current_user)):
+    return list_runs(request.app.state.db)
+
+
+@router.post("")
+def start(body: dict, request: Request, user=Depends(editors)):
+    db = request.app.state.db
+    try:
+        saved = snapshot(db, body["plan_id"])
+        id = enqueue(db, saved)
+    except (KeyError, ValueError) as error:
+        raise HTTPException(422, str(error)) from error
+    db.audit(user["id"], "run.started", id)
+    return read_run(db, id)
+
+
+@router.get("/{id}")
+def detail(id: str, request: Request, user=Depends(current_user)):
+    return find(request, id)
+
+
+@router.post("/{id}/cancel", status_code=204)
+def cancel(id: str, request: Request, user=Depends(editors)):
+    find(request, id)
+    with request.app.state.db.connect() as connection:
+        connection.execute(
+            "UPDATE runs SET cancelled=1 WHERE id=? AND status IN ('queued','running')", (id,)
+        )
+    request.app.state.db.audit(user["id"], "run.cancelled", id)
+
+
+@router.post("/{id}/recompute")
+def recompute(id: str, request: Request, user=Depends(editors)):
+    db = request.app.state.db
+    old = read_run(db, id, True)
+    if old["progress"] != old["total"] or old["status"] != "completed":
+        raise HTTPException(422, "Only complete runs can reuse all responses.")
+    try:
+        saved = snapshot(db, old["snapshot"]["plan"]["id"])
+    except (KeyError, ValueError) as error:
+        raise HTTPException(422, str(error)) from error
+    if (
+        saved["dataset"]["id"] != old["snapshot"]["dataset"]["id"]
+        or saved["dataset"]["version"] != old["snapshot"]["dataset"]["version"]
+    ):
+        raise HTTPException(422, "Dataset changed; start a new target run.")
+    saved["service"] = old["snapshot"]["service"]
+    saved["plan"]["service_id"] = saved["service"]["id"]
+    new = enqueue(db, saved, parent_id=id)
+    db.audit(user["id"], "run.recomputed", new)
+    return read_run(db, new)
+
+
+@router.get("/{id}/export")
+def export(id: str, request: Request, format: str = "json", user=Depends(current_user)):
+    run = find(request, id)
+    if format not in ("csv", "json"):
+        raise HTTPException(422, "Use csv or json.")
+    body = csv_export(run) if format == "csv" else json.dumps(run, ensure_ascii=False, indent=2)
+    return Response(
+        body,
+        media_type="text/csv" if format == "csv" else "application/json",
+        headers={"Content-Disposition": f'attachment; filename="eval-{id}.{format}"'},
+    )
+
+
+@router.get("/{id}/report", response_class=HTMLResponse)
+def printable(id: str, request: Request, user=Depends(current_user)):
+    return report(find(request, id))

@@ -1,0 +1,313 @@
+import { DRAFTS } from "./drafts";
+import { Component, inject, signal } from "@angular/core";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { Api, Item } from "../api";
+import { UI, pretty } from "../ui";
+import { tr } from "../i18n";
+
+@Component({
+  standalone: true,
+  imports: [...UI, RouterLink],
+  templateUrl: "./catalog.html",
+})
+export class CatalogPage {
+  api = inject(Api);
+  route = inject(ActivatedRoute);
+  router = inject(Router);
+  kind = signal("services");
+  items = signal<Item[]>([]);
+  editing = signal<Item | null>(null);
+  lookups = signal<Record<string, Item[]>>({});
+  loading = signal(true);
+  busy = signal(false);
+  operations = signal<Item[]>([]);
+  extra = signal("");
+  openapiUrl = "";
+  operation = -1;
+  mapping = "";
+  schema = "";
+  content = "";
+  format = "jsonl";
+  steps = "";
+  aliases: string[] = [];
+  previewInput = '{"title":"Beispiel"}';
+  frequency = "weekly";
+  scheduleDates = signal<string[]>([]);
+  help: Record<string, string> = {
+    services: "serviceHelp",
+    datasets: "datasetHelp",
+    criteria: "criteriaHelp",
+    providers: "providerHelp",
+    plans: "planHelp",
+    schedules: "scheduleHelp",
+  };
+  constructor() {
+    this.route.data.subscribe((data) => {
+      this.kind.set(data["kind"]);
+      this.editing.set(null);
+      this.extra.set("");
+      this.load();
+    });
+  }
+  async load() {
+    this.loading.set(true);
+    try {
+      this.items.set(await this.api.request("/catalog/" + this.kind()));
+      const keys = ["services", "datasets", "criteria", "providers", "plans"];
+      this.lookups.set(
+        Object.fromEntries(
+          await Promise.all(
+            keys.map(async (key) => [
+              key,
+              await this.api.request("/catalog/" + key),
+            ]),
+          ),
+        ),
+      );
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+  permitted() {
+    return ["services", "providers"].includes(this.kind())
+      ? this.api.isAdmin()
+      : this.api.canEdit();
+  }
+  open(item?: Item) {
+    const value = structuredClone(
+      item || { name: "", description: "", ...DRAFTS[this.kind()] },
+    );
+    this.mapping = pretty(value["mapping"] || { $input: "" });
+    this.schema = value["response_schema"]
+      ? pretty(value["response_schema"])
+      : "";
+    this.content = value["cases"]
+      ? value["cases"].map((r: Item) => JSON.stringify(r)).join("\n")
+      : "";
+    this.format = "jsonl";
+    this.steps = (value["steps"] || []).join("\n");
+    this.aliases = (value["fields"] || []).map((f: Item) =>
+      pretty(f["aliases"] || {}),
+    );
+    this.editing.set(value);
+    this.extra.set("");
+    this.operations.set([]);
+    this.scheduleDates.set([]);
+    this.frequency =
+      value["cron"] === "0 8 * * 1"
+        ? "weekly"
+        : value["cron"] === "0 8 * * *"
+          ? "daily"
+          : value["cron"] === "0 * * * *"
+            ? "hourly"
+            : "custom";
+    setTimeout(() => document.getElementById("editor-title")?.focus());
+  }
+  async save() {
+    const form = this.editing();
+    if (!form) return;
+    this.busy.set(true);
+    try {
+      const value = structuredClone(form);
+      delete value["has_secret"];
+      switch (this.kind()) {
+        case "services":
+          value["mapping"] = JSON.parse(this.mapping);
+          value["response_schema"] = this.schema.trim()
+            ? JSON.parse(this.schema)
+            : null;
+          break;
+        case "datasets":
+          value["content"] = this.content;
+          value["format"] = this.format;
+          delete value["cases"];
+          break;
+        case "criteria":
+          value["steps"] = this.steps
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          break;
+        case "plans":
+          value["fields"] = value["fields"].map((f: Item, i: number) => ({
+            ...f,
+            aliases: JSON.parse(this.aliases[i] || "{}"),
+          }));
+          break;
+      }
+      const path =
+        "/catalog/" + this.kind() + (value["id"] ? "/" + value["id"] : "");
+      await this.api.request(path, value["id"] ? "PUT" : "POST", value);
+      this.editing.set(null);
+      await this.load();
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  addField() {
+    this.editing()?.["fields"].push({
+      name: "",
+      output_path: "/",
+      reference_path: "/",
+      aliases: {},
+    });
+    this.aliases.push("{}");
+  }
+  removeField(index: number) {
+    this.editing()?.["fields"].splice(index, 1);
+    this.aliases.splice(index, 1);
+  }
+  async importFile(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (file.size > 5_000_000) {
+      this.api.fail(new Error("5 MB"));
+      return;
+    }
+    this.content = await file.text();
+    this.format = file.name.endsWith(".csv")
+      ? "csv"
+      : file.name.endsWith(".json")
+        ? "json"
+        : "jsonl";
+  }
+  async start(item: Item) {
+    this.busy.set(true);
+    try {
+      const run = await this.api.request("/runs", "POST", {
+        plan_id: item["id"],
+      });
+      await this.router.navigateByUrl("/runs/" + run.id);
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  async loadOpenapi() {
+    this.busy.set(true);
+    try {
+      const result = await this.api.request("/connections/openapi", "POST", {
+        url: this.openapiUrl,
+      });
+      this.operations.set(result.operations);
+      this.extra.set(pretty(result.schemas));
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  selectOperation() {
+    const op = this.operations()[this.operation];
+    const form = this.editing();
+    if (!op || !form) return;
+    form["url"] = op["url"];
+    form["method"] = op["method"];
+    if (!form["name"]) form["name"] = op["name"];
+    this.extra.set(pretty(op["input_schema"] || op["parameters"]));
+  }
+  async preview(item: Item) {
+    this.busy.set(true);
+    try {
+      const result = await this.api.request("/connections/preview", "POST", {
+        service_id: item["id"],
+        input: JSON.parse(this.previewInput),
+      });
+      this.extra.set(pretty(result));
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  async models(item: Item) {
+    this.busy.set(true);
+    try {
+      this.extra.set(
+        pretty(
+          await this.api.request("/connections/models", "POST", {
+            provider_id: item["id"],
+          }),
+        ),
+      );
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  async versions(item: Item) {
+    try {
+      this.extra.set(
+        pretty(
+          await this.api.request(
+            "/catalog/" + this.kind() + "/" + item["id"] + "/versions",
+          ),
+        ),
+      );
+    } catch (e) {
+      this.api.fail(e);
+    }
+  }
+  chooseFrequency() {
+    const presets: Record<string, string> = {
+      daily: "0 8 * * *",
+      weekly: "0 8 * * 1",
+      hourly: "0 * * * *",
+    };
+    const form = this.editing();
+    if (form && presets[this.frequency]) form["cron"] = presets[this.frequency];
+    this.scheduleDates.set([]);
+  }
+  async previewSchedule() {
+    try {
+      const result = await this.api.request(
+        "/connections/schedule-preview",
+        "POST",
+        this.editing(),
+      );
+      this.scheduleDates.set(result.dates);
+    } catch (e) {
+      this.api.fail(e);
+    }
+  }
+  localDate(value: string, zone: string) {
+    return new Intl.DateTimeFormat("de-DE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: zone,
+    }).format(new Date(value));
+  }
+  async remove(item: Item) {
+    if (!confirm(tr("deleteConfirm"))) return;
+    try {
+      await this.api.request(
+        "/catalog/" + this.kind() + "/" + item["id"],
+        "DELETE",
+      );
+      await this.load();
+    } catch (e) {
+      this.api.fail(e);
+    }
+  }
+  providerKind() {
+    const f = this.editing();
+    if (f)
+      f["base_url"] =
+        f["kind"] === "openai"
+          ? "https://api.openai.com/v1"
+          : "https://b-api.prod.openeduhub.net";
+  }
+  count(item: Item) {
+    return (
+      this.lookups()["datasets"]?.find((d) => d["id"] === item["dataset_id"])?.[
+        "cases"
+      ]?.length || 0
+    );
+  }
+}
