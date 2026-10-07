@@ -7,7 +7,8 @@ from .read_models import case_summary, catalog_summary, run_models, summary_brie
 
 def migrate(db):
     with db.connect() as c:
-        if c.execute("PRAGMA user_version").fetchone()[0] >= 3:
+        version = c.execute("PRAGMA user_version").fetchone()[0]
+        if version >= 4:
             return
         c.execute("BEGIN IMMEDIATE")
         for table, column, definition in [
@@ -26,7 +27,11 @@ def migrate(db):
                 "UPDATE catalog SET list_body=? WHERE id=?",
                 (json.dumps(catalog_summary(row["kind"], json.loads(row["body"]))), row["id"]),
             )
-        for row in c.execute("SELECT id,snapshot,summary FROM runs"):
+        for row in c.execute(
+            "SELECT id,snapshot,summary FROM runs"
+            if version < 3
+            else "SELECT id,snapshot,summary FROM runs WHERE 0"
+        ):
             metadata, configuration = run_models(json.loads(row["snapshot"]))
             size = (
                 len(row["snapshot"].encode())
@@ -61,4 +66,4 @@ def migrate(db):
             "CREATE INDEX IF NOT EXISTS runs_comparison "
             "ON runs(json_extract(metadata,'$.comparison_key'),created,id)"
         )
-        c.execute("PRAGMA user_version=3")
+        c.execute("PRAGMA user_version=4")

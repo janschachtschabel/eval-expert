@@ -14,6 +14,8 @@ def catalog_summary(kind, body):
         "threshold",
         "mode",
         "dataset_id",
+        "service_id",
+        "provider_id",
         "plan_id",
         "cron",
         "timezone",
@@ -23,6 +25,9 @@ def catalog_summary(kind, body):
     result = {k: body[k] for k in keep if k in body}
     if kind == "datasets":
         result["case_count"] = len(body.get("cases", []))
+    if kind == "plans":
+        result["criterion_ids"] = body.get("criterion_ids", [])[:12]
+        result["field_count"] = len(body.get("fields", []))
     return result
 
 
@@ -49,6 +54,15 @@ def run_models(saved):
 
 
 def case_summary(result, ordinal):
+    values = result.get("input", {})
+    preview = next(
+        (
+            values[key][:240]
+            for key in ("title", "url")
+            if isinstance(values, dict) and isinstance(values.get(key), str) and values[key]
+        ),
+        "",
+    )
     keep = (
         "case_id",
         "status",
@@ -61,6 +75,7 @@ def case_summary(result, ordinal):
     return {k: result[k] for k in keep if k in result} | {
         "ordinal": ordinal,
         "judge_count": len(result.get("judges", [])),
+        "input_preview": preview,
     }
 
 
