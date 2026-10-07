@@ -90,8 +90,13 @@ class Database:
 
     @staticmethod
     def public(row):
+        from .credentials import public_connection
+
+        body = json.loads(row["body"])
+        if row["kind"] == "services":
+            body = public_connection(body)
         return {
-            **json.loads(row["body"]),
+            **body,
             "id": row["id"],
             "version": row["version"],
             "created": row["created"],

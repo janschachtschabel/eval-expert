@@ -1,7 +1,6 @@
 import hashlib
 import secrets
 import time
-from collections import defaultdict, deque
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
@@ -82,13 +81,10 @@ def administrators(user=Depends(current_user)):
 @router.post("/auth/login")
 def login(body: Login, request: Request, response: Response):
     attempts = request.app.state.login_attempts
-    key = (request.client.host if request.client else "unknown") + ":" + body.username
-    recent = attempts[key]
-    while recent and recent[0] < time.monotonic() - 300:
-        recent.popleft()
-    if len(recent) >= 10:
-        raise HTTPException(429, "Too many attempts; wait five minutes.")
-    recent.append(time.monotonic())
+    try:
+        attempts.check(request.client.host if request.client else "unknown", body.username)
+    except ValueError as error:
+        raise HTTPException(429, str(error)) from error
     db = request.app.state.db
     with db.connect() as connection:
         row = connection.execute(
@@ -96,9 +92,12 @@ def login(body: Login, request: Request, response: Response):
         ).fetchone()
         password = row["password"] if row else request.app.state.dummy_password
         try:
-            valid = hasher.verify(password, body.password)
+            with attempts.verification():
+                valid = hasher.verify(password, body.password)
         except VerificationError:
             valid = False
+        except ValueError as error:
+            raise HTTPException(429, str(error)) from error
         if not valid or not row:
             raise HTTPException(401, "Invalid username or password.")
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
@@ -112,7 +111,6 @@ def login(body: Login, request: Request, response: Response):
                 time.time() + request.app.state.settings.session_hours * 3600,
             ),
         )
-    recent.clear()
     response.set_cookie(
         "eval_session",
         token,
@@ -184,4 +182,6 @@ def disable_user(id: str, request: Request, user=Depends(administrators)):
 
 
 def login_state():
-    return defaultdict(deque)
+    from .login_limits import LoginLimiter
+
+    return LoginLimiter()

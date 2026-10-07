@@ -42,12 +42,20 @@ def versions(kind: str, id: str, request: Request, user=Depends(current_user)):
     get_item(kind, id, request, user)
     import json
 
+    from .credentials import public_connection
+
     with request.app.state.db.connect() as connection:
         rows = connection.execute(
             "SELECT * FROM versions WHERE id=? ORDER BY version", (id,)
         ).fetchall()
     return [
-        {"version": row["version"], "created": row["created"], "body": json.loads(row["body"])}
+        {
+            "version": row["version"],
+            "created": row["created"],
+            "body": public_connection(json.loads(row["body"]))
+            if kind == "services"
+            else json.loads(row["body"]),
+        }
         for row in rows
     ]
 

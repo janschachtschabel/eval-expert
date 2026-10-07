@@ -19,6 +19,9 @@ def create_app(settings=None, start_worker=True):
     settings = settings or Settings()
     settings.validate_runtime()
     db = Database(settings.data_dir)
+    from .credentials import migrate_credentials
+
+    migrate_credentials(db, settings)
     auth.bootstrap(db, settings)
 
     @asynccontextmanager

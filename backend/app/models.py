@@ -35,6 +35,14 @@ class Service(Named):
             raise ValueError("Use the separate credential field for authentication headers.")
         return value
 
+    @model_validator(mode="after")
+    def separate_authentication(self):
+        if self.auth_header.lower() in {key.lower() for key in self.headers}:
+            raise ValueError(
+                "Use the separate credential field for the configured authentication header."
+            )
+        return self
+
 
 class Provider(Named):
     kind: Literal["openai", "bapi-openai", "bapi-academiccloud"] = "openai"

@@ -103,8 +103,14 @@ def comparison_key(saved):
 
 def redact(value):
     if isinstance(value, dict):
+        from .credentials import public_connection
+
         return {
-            key: redact(item) for key, item in value.items() if key not in ("_secret", "api_key")
+            key: redact(
+                public_connection(item) if key == "service" and isinstance(item, dict) else item
+            )
+            for key, item in value.items()
+            if key not in ("_secret", "api_key")
         }
     if isinstance(value, list):
         return [redact(item) for item in value]
