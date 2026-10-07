@@ -5,7 +5,7 @@
     <p>{{ help[kind()] | t }}</p>
   </div>
   @if (!editing() && permitted()) {
-    <button mat-flat-button (click)="open()">
+    <button mat-flat-button (click)="open()" [disabled]="loading() || busy()">
       {{ "new" | t }}
     </button>
   }
@@ -28,7 +28,7 @@
         </button>
       </div>
     }
-    <form (ngSubmit)="save()">
+    <form #editorForm="ngForm" (ngSubmit)="save(editorForm)">
       <div class="form-grid">
         <mat-form-field
           ><mat-label>{{ "name" | t }}</mat-label
@@ -38,11 +38,20 @@
             [(ngModel)]="f['name']"
             required
             maxlength="160"
-        /></mat-form-field>
+          /><mat-error>{{
+            errorMessage(editorForm.controls["name"]) | t
+          }}</mat-error></mat-form-field
+        >
         <mat-form-field
           ><mat-label>{{ "description" | t }}</mat-label
-          ><input matInput name="description" [(ngModel)]="f['description']"
-        /></mat-form-field>
+          ><input
+            matInput
+            name="description"
+            [(ngModel)]="f['description']"
+          /><mat-error>{{
+            errorMessage(editorForm.controls["description"]) | t
+          }}</mat-error></mat-form-field
+        >
         @switch (kind()) {
           @case ("services") {
             <mat-form-field
@@ -52,14 +61,19 @@
                 name="url"
                 [(ngModel)]="f['url']"
                 [required]="f['kind'] === 'http'"
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["url"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "method" | t }}</mat-label
               ><mat-select name="method" [(ngModel)]="f['method']">
                 @for (m of ["POST", "GET", "PUT", "PATCH"]; track m) {
                   <mat-option [value]="m">{{ m }}</mat-option>
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["method"]) | t
+              }}</mat-error></mat-form-field
             >
             <div class="full surface-subtle">
               <h3>{{ "openapi" | t }}</h3>
@@ -67,8 +81,14 @@
               <div class="inline-form">
                 <mat-form-field
                   ><mat-label>{{ "openapiUrl" | t }}</mat-label
-                  ><input matInput name="openapi" [(ngModel)]="openapiUrl"
-                /></mat-form-field>
+                  ><input
+                    matInput
+                    name="openapi"
+                    [(ngModel)]="openapiUrl"
+                  /><mat-error>{{
+                    errorMessage(editorForm.controls["openapi"]) | t
+                  }}</mat-error></mat-form-field
+                >
                 <button
                   mat-stroked-button
                   type="button"
@@ -78,6 +98,9 @@
                   {{ "loadOperations" | t }}
                 </button>
               </div>
+              @if (openapiEmpty()) {
+                <p role="status">{{ "noOperations" | t }}</p>
+              }
               @if (operations().length) {
                 <mat-form-field
                   ><mat-label>{{ "operation" | t }}</mat-label
@@ -90,8 +113,10 @@
                       <mat-option [value]="$index"
                         >{{ op["method"] }} · {{ op["name"] }}</mat-option
                       >
-                    }
-                  </mat-select></mat-form-field
+                    }</mat-select
+                  ><mat-error>{{
+                    errorMessage(editorForm.controls["operation"]) | t
+                  }}</mat-error></mat-form-field
                 >
               }
             </div>
@@ -105,7 +130,10 @@
                 class="code"
                 required
               ></textarea>
-            </mat-form-field>
+              <mat-error>{{
+                errorMessage(editorForm.controls["mapping"]) | t
+              }}</mat-error></mat-form-field
+            >
             <p class="full hint">{{ "mappingHelp" | t }}</p>
             <mat-form-field
               ><mat-label>{{ "secret" | t }}</mat-label
@@ -115,7 +143,10 @@
                 [(ngModel)]="f['api_key']"
                 type="password"
                 autocomplete="new-password"
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["api_key"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "timeout" | t }}</mat-label
               ><input
@@ -125,7 +156,10 @@
                 type="number"
                 min="1"
                 max="180"
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["timeout"]) | t
+              }}</mat-error></mat-form-field
+            >
             <details class="full">
               <summary>{{ "advanced" | t }}</summary>
               <div class="form-grid">
@@ -135,14 +169,20 @@
                     matInput
                     name="authHeader"
                     [(ngModel)]="f['auth_header']"
-                /></mat-form-field>
+                  /><mat-error>{{
+                    errorMessage(editorForm.controls["authHeader"]) | t
+                  }}</mat-error></mat-form-field
+                >
                 <mat-form-field
                   ><mat-label>{{ "authPrefix" | t }}</mat-label
                   ><input
                     matInput
                     name="authPrefix"
                     [(ngModel)]="f['auth_prefix']"
-                /></mat-form-field>
+                  /><mat-error>{{
+                    errorMessage(editorForm.controls["authPrefix"]) | t
+                  }}</mat-error></mat-form-field
+                >
                 <mat-form-field class="full"
                   ><mat-label>{{ "schema" | t }}</mat-label
                   ><textarea
@@ -152,7 +192,10 @@
                     rows="4"
                     class="code"
                   ></textarea>
-                </mat-form-field>
+                  <mat-error>{{
+                    errorMessage(editorForm.controls["schema"]) | t
+                  }}</mat-error></mat-form-field
+                >
               </div>
             </details>
           }
@@ -162,8 +205,10 @@
               ><mat-select name="format" [(ngModel)]="format">
                 @for (o of ["jsonl", "json", "csv"]; track o) {
                   <mat-option [value]="o">{{ o.toUpperCase() }}</mat-option>
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["format"]) | t
+              }}</mat-error></mat-form-field
             >
             <div class="file-input">
               <label for="dataset-file">{{ "file" | t }}</label
@@ -185,7 +230,10 @@
                 rows="10"
                 required
               ></textarea>
-            </mat-form-field>
+              <mat-error>{{
+                errorMessage(editorForm.controls["content"]) | t
+              }}</mat-error></mat-form-field
+            >
           }
           @case ("criteria") {
             <mat-form-field class="full"
@@ -197,19 +245,33 @@
                 rows="5"
                 required
               ></textarea>
-            </mat-form-field>
+              <mat-error>{{
+                errorMessage(editorForm.controls["steps"]) | t
+              }}</mat-error></mat-form-field
+            >
             <p class="full hint">{{ "stepsHelp" | t }}</p>
             <mat-form-field
               ><mat-label>{{ "outputPath" | t }}</mat-label
-              ><input matInput name="outputPath" [(ngModel)]="f['output_path']"
-            /></mat-form-field>
+              ><input
+                matInput
+                name="outputPath"
+                [(ngModel)]="f['output_path']"
+                pattern="(/.*)?"
+              /><mat-error>{{
+                errorMessage(editorForm.controls["outputPath"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "contextPath" | t }}</mat-label
               ><input
                 matInput
                 name="contextPath"
                 [(ngModel)]="f['context_path']"
-            /></mat-form-field>
+                pattern="(/.*)?"
+              /><mat-error>{{
+                errorMessage(editorForm.controls["contextPath"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "contextSource" | t }}</mat-label
               ><mat-select
@@ -219,7 +281,9 @@
                 ><mat-option value="output">{{
                   "response" | t
                 }}</mat-option></mat-select
-              ></mat-form-field
+              ><mat-error>{{
+                errorMessage(editorForm.controls["contextSource"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-checkbox
               name="requireContext"
@@ -238,7 +302,10 @@
                 min="0"
                 max="1"
                 required
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["threshold"]) | t
+              }}</mat-error></mat-form-field
+            >
           }
           @case ("providers") {
             <mat-form-field
@@ -253,7 +320,9 @@
                 ><mat-option value="bapi-academiccloud"
                   >b-api · AcademicCloud</mat-option
                 ></mat-select
-              ></mat-form-field
+              ><mat-error>{{
+                errorMessage(editorForm.controls["kind"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-form-field
               ><mat-label>{{ "baseUrl" | t }}</mat-label
@@ -262,11 +331,21 @@
                 name="baseUrl"
                 [(ngModel)]="f['base_url']"
                 required
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["baseUrl"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "model" | t }}</mat-label
-              ><input matInput name="model" [(ngModel)]="f['model']" required
-            /></mat-form-field>
+              ><input
+                matInput
+                name="model"
+                [(ngModel)]="f['model']"
+                required
+              /><mat-error>{{
+                errorMessage(editorForm.controls["model"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "secret" | t }}</mat-label
               ><input
@@ -275,7 +354,10 @@
                 [(ngModel)]="f['api_key']"
                 type="password"
                 autocomplete="new-password"
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["api_key"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "tokenParam" | t }}</mat-label
               ><mat-select name="tokenParam" [(ngModel)]="f['token_parameter']"
@@ -284,7 +366,9 @@
                 ><mat-option value="max_tokens"
                   >max_tokens</mat-option
                 ></mat-select
-              ></mat-form-field
+              ><mat-error>{{
+                errorMessage(editorForm.controls["tokenParam"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-form-field
               ><mat-label>{{ "tokenLimit" | t }}</mat-label
@@ -295,7 +379,10 @@
                 type="number"
                 min="128"
                 max="16384"
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["tokenLimit"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "temperature" | t }}</mat-label
               ><input
@@ -306,7 +393,10 @@
                 min="0"
                 max="2"
                 step="0.1"
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["temperature"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-checkbox name="jsonMode" [(ngModel)]="f['json_mode']">{{
               "jsonMode" | t
             }}</mat-checkbox>
@@ -322,8 +412,10 @@
               >
                 @for (o of lookups()["services"]; track o["id"]) {
                   <mat-option [value]="o['id']">{{ o["name"] }}</mat-option>
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["service"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-form-field
               ><mat-label>{{ "dataset" | t }}</mat-label
@@ -337,16 +429,20 @@
                     >{{ o["name"] }} · {{ o["case_count"] }}
                     {{ "cases" | t }}</mat-option
                   >
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["dataset"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-form-field
               ><mat-label>{{ "mode" | t }}</mat-label
               ><mat-select name="mode" [(ngModel)]="f['mode']">
                 @for (m of ["reference", "judge", "combined"]; track m) {
                   <mat-option [value]="m">{{ m | t }}</mat-option>
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["mode"]) | t
+              }}</mat-error></mat-form-field
             >
             @if (f["mode"] !== "judge") {
               <div class="full">
@@ -361,23 +457,33 @@
                         [name]="'fieldName' + i"
                         [(ngModel)]="field.name"
                         required
-                    /></mat-form-field>
+                      /><mat-error>{{
+                        errorMessage(editorForm.controls["fieldName" + i]) | t
+                      }}</mat-error></mat-form-field
+                    >
                     <mat-form-field
                       ><mat-label>{{ "outputPath" | t }}</mat-label
                       ><input
                         matInput
                         [name]="'outputPath' + i"
                         [(ngModel)]="field.output_path"
-                        required
-                    /></mat-form-field>
+                        pattern="(/.*)?"
+                      /><mat-error>{{
+                        errorMessage(editorForm.controls["outputPath" + i]) | t
+                      }}</mat-error></mat-form-field
+                    >
                     <mat-form-field
                       ><mat-label>{{ "referencePath" | t }}</mat-label
                       ><input
                         matInput
                         [name]="'referencePath' + i"
                         [(ngModel)]="field.reference_path"
-                        required
-                    /></mat-form-field>
+                        pattern="(/.*)?"
+                      /><mat-error>{{
+                        errorMessage(editorForm.controls["referencePath" + i])
+                          | t
+                      }}</mat-error></mat-form-field
+                    >
                     <button mat-button type="button" (click)="removeField(i)">
                       {{ "removeField" | t }}
                     </button>
@@ -392,7 +498,10 @@
                           class="code"
                           rows="2"
                         ></textarea>
-                      </mat-form-field>
+                        <mat-error>{{
+                          errorMessage(editorForm.controls["aliases" + i]) | t
+                        }}</mat-error></mat-form-field
+                      >
                     </details>
                   </div>
                 }
@@ -411,8 +520,10 @@
                 >
                   @for (o of lookups()["providers"]; track o["id"]) {
                     <mat-option [value]="o['id']">{{ o["name"] }}</mat-option>
-                  }
-                </mat-select></mat-form-field
+                  }</mat-select
+                ><mat-error>{{
+                  errorMessage(editorForm.controls["provider"]) | t
+                }}</mat-error></mat-form-field
               >
               <mat-form-field
                 ><mat-label>{{ "criterionSelection" | t }}</mat-label
@@ -424,8 +535,10 @@
                 >
                   @for (o of lookups()["criteria"]; track o["id"]) {
                     <mat-option [value]="o['id']">{{ o["name"] }}</mat-option>
-                  }
-                </mat-select></mat-form-field
+                  }</mat-select
+                ><mat-error>{{
+                  errorMessage(editorForm.controls["criteria"]) | t
+                }}</mat-error></mat-form-field
               >
             }
           }
@@ -439,16 +552,20 @@
               >
                 @for (o of ["daily", "weekly", "hourly", "custom"]; track o) {
                   <mat-option [value]="o">{{ o | t }}</mat-option>
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["frequency"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-form-field
               ><mat-label>{{ "plans" | t }}</mat-label
               ><mat-select name="plan" [(ngModel)]="f['plan_id']" required>
                 @for (o of lookups()["plans"]; track o["id"]) {
                   <mat-option [value]="o['id']">{{ o["name"] }}</mat-option>
-                }
-              </mat-select></mat-form-field
+                }</mat-select
+              ><mat-error>{{
+                errorMessage(editorForm.controls["plan"]) | t
+              }}</mat-error></mat-form-field
             >
             <mat-form-field
               ><mat-label>{{ "cron" | t }}</mat-label
@@ -458,7 +575,10 @@
                 [(ngModel)]="f['cron']"
                 (ngModelChange)="scheduleDates.set([])"
                 required
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["cron"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "timezone" | t }}</mat-label
               ><input
@@ -467,7 +587,10 @@
                 [(ngModel)]="f['timezone']"
                 (ngModelChange)="scheduleDates.set([])"
                 required
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["timezone"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-checkbox name="enabled" [(ngModel)]="f['enabled']">{{
               "enabled" | t
             }}</mat-checkbox>
@@ -503,7 +626,11 @@
         }
       </div>
       <div class="form-actions">
-        <button mat-flat-button type="submit" [disabled]="busy()">
+        <button
+          mat-flat-button
+          type="submit"
+          [disabled]="busy() || importing()"
+        >
           {{ "save" | t }}</button
         ><button mat-button type="button" (click)="cancelEditor()">
           {{ "cancel" | t }}
@@ -514,6 +641,8 @@
 } @else {
   @if (loading()) {
     <p role="status">{{ "loading" | t }}</p>
+  } @else if (loadError()) {
+    <button mat-stroked-button (click)="load()">{{ "retry" | t }}</button>
   } @else if (!items().length) {
     <section class="empty-state">
       <h2>{{ "noItems" | t }}</h2>
@@ -564,6 +693,9 @@
                 {{ item["mode"] | t }} · {{ count(item) }} {{ "cases" | t }}
               </p>
               <p class="hint">{{ "confirmStart" | t }}</p>
+              @if (readiness(item); as issue) {
+                <p class="error">{{ issue | t }}</p>
+              }
             }
             @case ("schedules") {
               <p class="mono">{{ item["cron"] }} · {{ item["timezone"] }}</p>
@@ -577,13 +709,17 @@
                 </p>
               }
               <span class="badge">{{
-                (item["enabled"] ? "active" : "inactive") | t
+                (item["enabled"] ? "active" : "scheduleInactive") | t
               }}</span>
             }
           }
           <div class="card-actions">
             @if (kind() === "plans" && api.canEdit()) {
-              <button mat-flat-button (click)="start(item)" [disabled]="busy()">
+              <button
+                mat-flat-button
+                (click)="start(item)"
+                [disabled]="busy() || !!readiness(item)"
+              >
                 {{ "start" | t }}
               </button>
             }

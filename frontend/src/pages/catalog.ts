@@ -5,6 +5,8 @@ import { Api, ApiError, Item } from "../api";
 import { UI, pretty } from "../ui";
 import { tr } from "../i18n";
 import { ServicePreview } from "./service-preview";
+import { NgForm } from "@angular/forms";
+import { controlError } from "../validation";
 
 @Component({
   standalone: true,
@@ -20,6 +22,10 @@ export class CatalogPage {
   editing = signal<Item | null>(null);
   lookups = signal<Record<string, Item[]>>({});
   loading = signal(true);
+  loadError = signal(false);
+  openapiEmpty = signal(false);
+  importing = signal(false);
+  errorMessage = controlError;
   busy = signal(false);
   conflict = signal(false);
   private editorGeneration = 0;
@@ -66,6 +72,7 @@ export class CatalogPage {
       generation === this.listGeneration &&
       kind === this.kind();
     this.loading.set(true);
+    this.loadError.set(false);
     try {
       const items = await this.api.request("/catalog/" + kind);
       if (!current()) return;
@@ -81,7 +88,10 @@ export class CatalogPage {
       );
       if (current()) this.lookups.set(lookups);
     } catch (e) {
-      if (current()) this.api.fail(e);
+      if (current()) {
+        this.loadError.set(true);
+        this.api.fail(e);
+      }
     } finally {
       if (current()) this.loading.set(false);
     }
@@ -91,6 +101,7 @@ export class CatalogPage {
     this.editing.set(null);
     this.conflict.set(false);
     this.busy.set(false);
+    this.importing.set(false);
   }
   permitted() {
     return ["services", "providers"].includes(this.kind())
@@ -115,6 +126,8 @@ export class CatalogPage {
     }
   }
   applyEditor(value: Item) {
+    this.api.error.set("");
+    this.openapiEmpty.set(false);
     this.mapping = pretty(value["mapping"] || { $input: "" });
     this.schema = value["response_schema"]
       ? pretty(value["response_schema"])
@@ -142,7 +155,9 @@ export class CatalogPage {
             : "custom";
     setTimeout(() => document.getElementById("editor-title")?.focus());
   }
-  async save() {
+  async save(editorForm: NgForm) {
+    editorForm.control.markAllAsTouched();
+    if (editorForm.invalid || this.busy() || this.importing()) return;
     const form = this.editing();
     if (!form) return;
     const generation = this.editorGeneration;
@@ -181,6 +196,7 @@ export class CatalogPage {
         "/catalog/" + this.kind() + (value["id"] ? "/" + value["id"] : "");
       await this.api.request(path, value["id"] ? "PUT" : "POST", value);
       if (!current()) return;
+      this.api.error.set("");
       this.editing.set(null);
       await this.load();
     } catch (e) {
@@ -211,12 +227,23 @@ export class CatalogPage {
       this.api.fail(new Error("5 MB"));
       return;
     }
-    this.content = await file.text();
-    this.format = file.name.endsWith(".csv")
-      ? "csv"
-      : file.name.endsWith(".json")
-        ? "json"
-        : "jsonl";
+    const generation = this.editorGeneration;
+    this.importing.set(true);
+    try {
+      const content = await file.text();
+      if (this.destroyed || generation !== this.editorGeneration) return;
+      this.content = content;
+      this.format = file.name.endsWith(".csv")
+        ? "csv"
+        : file.name.endsWith(".json")
+          ? "json"
+          : "jsonl";
+    } catch (error) {
+      if (!this.destroyed && generation === this.editorGeneration)
+        this.api.fail(error);
+    } finally {
+      if (generation === this.editorGeneration) this.importing.set(false);
+    }
   }
   async start(item: Item) {
     this.busy.set(true);
@@ -232,12 +259,15 @@ export class CatalogPage {
     }
   }
   async loadOpenapi() {
+    this.api.error.set("");
+    this.openapiEmpty.set(false);
     this.busy.set(true);
     try {
       const result = await this.api.request("/connections/openapi", "POST", {
         url: this.openapiUrl,
       });
       this.operations.set(result.operations);
+      this.openapiEmpty.set(result.operations.length === 0);
       this.operation = -1;
       this.extra.set(pretty(result.schemas));
     } catch (e) {
@@ -339,5 +369,32 @@ export class CatalogPage {
         "case_count"
       ] || 0
     );
+  }
+  readiness(item: Item): string {
+    const lookups = this.lookups();
+    const exists = (kind: string, id: string) =>
+      lookups[kind]?.some((entry) => entry["id"] === id);
+    if (
+      !exists("services", item["service_id"]) ||
+      !exists("datasets", item["dataset_id"])
+    )
+      return "missingSetup";
+    if (item["mode"] !== "judge" && !item["field_count"])
+      return "missingFields";
+    if (item["mode"] !== "reference") {
+      if (!exists("providers", item["provider_id"])) return "missingProvider";
+      if (
+        !item["criterion_ids"]?.length ||
+        item["criterion_ids"].some((id: string) => !exists("criteria", id))
+      )
+        return "missingCriteria";
+      if (
+        !lookups["providers"].find(
+          (entry) => entry["id"] === item["provider_id"],
+        )?.["has_secret"]
+      )
+        return "missingCredential";
+    }
+    return "";
   }
 }

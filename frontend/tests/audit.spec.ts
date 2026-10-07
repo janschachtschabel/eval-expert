@@ -264,6 +264,7 @@ test("late reload cannot reopen an editor the user cancelled", async ({
     id: "mock-criterion",
     version: 1,
     name: "Reload criterion",
+    threshold: 0.7,
     steps: ["Prüfe."],
   };
   let release!: () => void;

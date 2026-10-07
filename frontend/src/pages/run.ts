@@ -1,7 +1,8 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { MatDialog } from "@angular/material/dialog";
-import { Api, Item, Page } from "../api";
+import { Api, ApiError, Item, Page } from "../api";
+import { tr } from "../i18n";
 import { UI, percent, pretty } from "../ui";
 import { CaseDialog } from "./case";
 import { Pager } from "../pager";
@@ -16,6 +17,7 @@ export class RunPage {
   router = inject(Router);
   dialog = inject(MatDialog);
   run = signal<Item | null>(null);
+  loadError = signal("");
   history = signal<Item[]>([]);
   busy = signal(false);
   caseOffset = signal(0);
@@ -46,6 +48,7 @@ export class RunPage {
       this.caseOffset.set(0);
       this.classPages.set({});
       this.run.set(null);
+      this.loadError.set("");
       this.load();
     });
   }
@@ -73,6 +76,7 @@ export class RunPage {
         else r["results"] = this.run()?.["results"] || r["results"];
       }
       this.run.set(r);
+      this.loadError.set("");
       if (!this.selectedField)
         this.selectedField =
           this.run()?.["snapshot"]["plan"]["fields"][0]?.name || "__judge";
@@ -85,7 +89,16 @@ export class RunPage {
         this.history.set(all.items.reverse());
       }
     } catch (e) {
-      if (current()) this.api.fail(e);
+      if (current()) {
+        this.loadError.set(
+          e instanceof ApiError && e.status === 404
+            ? tr("runMissing")
+            : e instanceof Error
+              ? e.message
+              : tr("error"),
+        );
+        this.api.fail(e);
+      }
     } finally {
       if (current()) this.loadingRunId = null;
     }

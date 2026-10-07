@@ -306,7 +306,7 @@
             <tr>
               <th scope="row">{{ row["case_id"] }}</th>
               <td class="case-title">
-                {{ row["input"]?.title || row["case_id"] }}
+                {{ row["input_preview"] || row["case_id"] }}
               </td>
               <td>
                 <span
@@ -375,6 +375,12 @@
       <summary>{{ "snapshot" | t }}</summary>
       <pre>{{ configuration() }}</pre>
     </details>
+  </section>
+} @else if (loadError()) {
+  <section class="surface">
+    <p role="alert">{{ loadError() }}</p>
+    <button mat-stroked-button (click)="load()">{{ "retry" | t }}</button
+    ><a mat-button routerLink="/runs">{{ "runs" | t }}</a>
   </section>
 } @else {
   <p role="status">{{ "loading" | t }}</p>

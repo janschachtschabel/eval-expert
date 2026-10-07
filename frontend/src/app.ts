@@ -1,3 +1,5 @@
+import { NgForm } from "@angular/forms";
+import { controlError } from "./validation";
 import {
   Component,
   ElementRef,
@@ -32,7 +34,7 @@ import { UI } from "./ui";
         <section class="login-card">
           <h2>{{ "login" | t }}</h2>
           <p>{{ "loginHelp" | t }}</p>
-          <form (ngSubmit)="login()">
+          <form #editorForm="ngForm" (ngSubmit)="login(editorForm)">
             <mat-form-field
               ><mat-label>{{ "username" | t }}</mat-label>
               <input
@@ -41,7 +43,10 @@ import { UI } from "./ui";
                 [(ngModel)]="username"
                 autocomplete="username"
                 required
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["username"]) | t
+              }}</mat-error></mat-form-field
+            >
             <mat-form-field
               ><mat-label>{{ "password" | t }}</mat-label
               ><input
@@ -51,7 +56,10 @@ import { UI } from "./ui";
                 type="password"
                 autocomplete="current-password"
                 required
-            /></mat-form-field>
+              /><mat-error>{{
+                errorMessage(editorForm.controls["password"]) | t
+              }}</mat-error></mat-form-field
+            >
             @if (loginError()) {
               <p class="error" role="alert">{{ "authError" | t }}</p>
             }
@@ -138,6 +146,7 @@ import { UI } from "./ui";
 export class App {
   @ViewChild("navigationToggle", { read: ElementRef })
   navigationToggle?: ElementRef<HTMLButtonElement>;
+  errorMessage = controlError;
   api = inject(Api);
   router = inject(Router);
   loading = signal(true);
@@ -174,7 +183,9 @@ export class App {
     this.navOpen.set(false);
     this.navigationToggle?.nativeElement.focus();
   }
-  async login() {
+  async login(editorForm: NgForm) {
+    editorForm.control.markAllAsTouched();
+    if (editorForm.invalid || this.busy()) return;
     this.busy.set(true);
     this.loginError.set(false);
     try {

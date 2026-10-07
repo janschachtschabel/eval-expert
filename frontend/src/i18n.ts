@@ -1,5 +1,25 @@
 import { Pipe, PipeTransform } from "@angular/core";
 export const de: Record<string, string> = {
+  requiredField: "Pflichtfeld – bitte ausfüllen.",
+  shortPassword: "Mindestens 12 Zeichen erforderlich.",
+  invalidRange: "Wert liegt außerhalb des erlaubten Bereichs.",
+  invalidPointer:
+    "JSON Pointer beginnt mit /; leer bedeutet das gesamte Objekt.",
+  invalidValue:
+    "Eingaben prüfen. Pflichtfelder, Format und Wertebereich beachten.",
+  missingProvider: "Wähle eine LLM-Anbindung im Prüfprofil.",
+  missingCriteria: "Wähle mindestens ein Bewertungskriterium im Prüfprofil.",
+  missingFields: "Ergänze mindestens ein Referenzfeld im Prüfprofil.",
+  missingJudgeSetup:
+    "Wähle LLM-Anbindung und Bewertungskriterien im Prüfprofil.",
+  missingCredential: "Hinterlege Zugangsdaten in der gewählten LLM-Anbindung.",
+  resourceMissing: "Der Eintrag wurde nicht gefunden. Ansicht erneut laden.",
+  runMissing: "Prüflauf wurde nicht gefunden.",
+  resourceInUse: "Dieser Eintrag wird noch verwendet: ",
+  invalidSchedule: "Cron-Zeitplan und Zeitzone prüfen.",
+  noOperations:
+    "Keine unterstützten Operationen gefunden. OpenAPI-URL und Pfadvariablen prüfen.",
+  scheduleInactive: "Inaktiv",
   case: "Fall",
   closeMenu: "Navigation schließen",
   previousPage: "Vorherige Seite",
@@ -230,7 +250,7 @@ export const de: Record<string, string> = {
   fieldTable: "Referenzkennzahlen",
   caseTitle: "Einzelfall",
   showVersions: "Versionsverlauf",
-  chart: "F1-Verlauf",
+  chart: "Messwerte im Zeitverlauf",
   missingSetup: "Lege zuerst einen Dienst und einen Datensatz an.",
   invalidJson: "JSON-Eingabe prüfen.",
   savedResponses: "Antworten aus vorherigem Lauf wiederverwendet",

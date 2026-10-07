@@ -1,4 +1,6 @@
 import { Injectable, signal } from "@angular/core";
+import { apiMessage } from "./validation";
+import { tr } from "./i18n";
 export type Item = Record<string, any>;
 export interface Page<T = Item> {
   items: T[];
@@ -39,9 +41,7 @@ export class Api {
         this.user.set(null);
       throw new ApiError(
         response.status,
-        typeof value.detail === "string"
-          ? value.detail
-          : "HTTP " + response.status,
+        apiMessage(value.detail, response.status, tr),
       );
     }
     return response.status === 204 ? (undefined as T) : response.json();
@@ -64,6 +64,12 @@ export class Api {
     return this.user()?.["role"] === "admin";
   }
   fail(error: unknown) {
-    this.error.set(error instanceof Error ? error.message : String(error));
+    this.error.set(
+      error instanceof SyntaxError
+        ? tr("invalidJson")
+        : error instanceof Error
+          ? error.message
+          : String(error),
+    );
   }
 }
