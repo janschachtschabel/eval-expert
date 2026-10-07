@@ -183,10 +183,32 @@ between cases and criteria; an in-flight HTTP call completes before stopping. Ru
 marked interrupted after a restart and is never automatically replayed. A new run is an explicit
 decision because a target request may have side effects. Queued work remains durable.
 
+History is paginated in groups of 50, case summaries in groups of 25. Individual case details
+are loaded on demand; status polling does not send the dataset or raw responses. JSON/CSV exports
+and reports include all stored cases and stream them in bounded batches. A run can store at most
+50 MB of snapshot and result evidence; each reference field supports at most 10,000 labels.
+Exceeding a budget fails explicitly and retains already stored evidence. Valid fields remain
+evaluable when another field has an invalid type. Raw schema-invalid responses remain available
+for inspection and reassessment.
+
+API read contracts: `GET /api/runs/page?limit=50&offset=0` returns `items`, `total`, `limit`,
+`offset`; optional `comparison_key` and `status` filter before pagination. `GET /api/runs/{id}`
+returns configuration without dataset cases and the first 25 case summaries. Use
+`GET /api/runs/{id}/status`, `/cases?limit=25&offset=0` and `/cases/{ordinal}` for progress,
+case pages and complete individual evidence (zero-based ordinal). Catalog lists contain small
+summaries; fetch `/api/catalog/{kind}/{id}` before editing. The legacy `/api/runs` list is limited
+to 200 summaries; use `/page` for the complete history.
+
 Schedules use five-field cron expressions and IANA time zones, defaulting to `Europe/Berlin`.
 `0 8 * * 1` means Monday at 08:00 local time. The worker checks schedules roughly every 30 seconds
 between runs; long evaluations can delay a due schedule. Missed intervals produce one catch-up
 run, not a burst. Unique schedule keys prevent duplicate enqueueing after recovery.
+When the queue is full, the due time is retained for retry and a visible schedule error records
+the reason. Invalid dependencies also remain visible rather than silently dropping a due run.
+
+The worker supervisor retries after 1, 2 and 4 seconds. Health returns 503 during recovery.
+Persistent worker failure exits the process with code 1 so Docker's restart policy can act.
+Recovery marks uncertain running requests interrupted instead of automatically repeating them.
 
 ## Accounts and operations
 
@@ -194,6 +216,18 @@ Administrators create local accounts and manage API/LLM credentials. Editors man
 criteria, profiles, schedules and runs. Reviewers and viewers currently have read access. This is
 one shared team installation, not organizational multitenancy. Disabling an account revokes its
 sessions. Cookies are HttpOnly/SameSite and mutations require CSRF tokens.
+
+Catalog updates require the version read by the editor (`version` on PUT). Stale saves return
+409 and preserve the current record; the UI offers explicit reload. Deleting resources referenced
+by profiles or schedules returns 409. Historical run snapshots do not block deletion.
+
+On upgrade, the SQLite schema moves automatically to version 2, backfilling small read models
+without discarding original snapshots, results, accounts or catalog versions. A one-time
+credential migration encrypts configured authentication headers in legacy connection bodies,
+scrubs public history and vacuums freed database pages. Keep `EVAL_SECRET_KEY` unchanged.
+Back up the complete stopped volume and secret key before upgrading; rollback restores that
+backup together with the previous immutable image/tag. Do not run the older app against an
+upgraded database.
 
 `EVAL_ADMIN_PASSWORD` is used only to initialize an empty database. Changing it later does not
 change an existing account. An operator with access to the container can reset a password without

@@ -31,11 +31,11 @@ def create_app(settings=None, start_worker=True):
         if start_worker:
             import portalocker
 
-            from .runner import worker
+            from .worker_supervisor import supervise
 
             lock = portalocker.Lock(Path(settings.data_dir) / "worker.lock", timeout=0)
             lock.acquire()
-            task = asyncio.create_task(worker(app))
+            task = asyncio.create_task(supervise(app))
             app.state.worker_task = task
         yield
         if task:
@@ -57,6 +57,7 @@ def create_app(settings=None, start_worker=True):
     )
     app.state.settings = settings
     app.state.db = db
+    app.state.worker_state = "starting" if start_worker else "disabled"
     app.state.login_attempts = auth.login_state()
     app.state.dummy_password = auth.hasher.hash("not-an-account-" + os.urandom(16).hex())
     app.include_router(auth.router, prefix="/api")
@@ -101,8 +102,9 @@ def create_app(settings=None, start_worker=True):
     @app.get("/api/health")
     def health():
         task = getattr(app.state, "worker_task", None)
-        if task and task.done():
-            return JSONResponse({"status": "worker_failed"}, status_code=503)
+        state = app.state.worker_state
+        if state in ("starting", "recovering", "failed") or (task and task.done()):
+            return JSONResponse({"status": "worker_" + state}, status_code=503)
         with db.connect() as connection:
             connection.execute("SELECT 1")
         return {"status": "ok", "version": "0.1.0"}

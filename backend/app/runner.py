@@ -8,7 +8,9 @@ from .benchmarks import labels
 from .database import now
 from .judge import JudgeModel, evaluate
 from .pointers import get_pointer
-from .run_store import finish, read_run, save_result
+from .run_queries import frozen
+from .run_queries import result as stored_result
+from .run_store import finish, save_result
 from .scheduler import tick
 from .target import ResponseValidationError, call_target
 
@@ -126,7 +128,7 @@ def summarize(results, saved):
 
 async def execute_run(app, id):
     db = app.state.db
-    run = read_run(db, id, internal=True)
+    run = frozen(db, id)
     with db.connect() as connection:
         claimed = connection.execute(
             "UPDATE runs SET status='running' WHERE id=? AND status='queued'", (id,)
@@ -134,8 +136,7 @@ async def execute_run(app, id):
     if not claimed:
         return
     saved = run["snapshot"]
-    parent = read_run(db, run["parent_id"], True)["results"] if run["parent_id"] else None
-    results = []
+    accumulator = SummaryAccumulator(saved)
     for ordinal, case in enumerate(saved["dataset"]["cases"]):
         with db.connect() as connection:
             cancelled = connection.execute(
@@ -143,15 +144,18 @@ async def execute_run(app, id):
             ).fetchone()[0]
         if cancelled:
             break
-        result = await execute_case(app, saved, case, parent[ordinal] if parent else None, id)
+        reused = stored_result(db, run["parent_id"], ordinal, True) if run["parent_id"] else None
+        result = await execute_case(app, saved, case, reused, id)
         save_result(db, id, ordinal, result)
-        results.append(result)
-    finish(db, id, "cancelled" if is_cancelled(db, id) else "completed", summarize(results, saved))
+        await asyncio.to_thread(accumulator.add, result)
+    summary = await asyncio.to_thread(accumulator.summary)
+    finish(db, id, "cancelled" if is_cancelled(db, id) else "completed", summary)
 
 
 async def worker(app):
     db = app.state.db
     recover(db)
+    app.state.worker_state = "ok"
     last_tick = 0
     while True:
         if time.monotonic() - last_tick > 30:

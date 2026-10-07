@@ -75,6 +75,13 @@ def migrate_credentials(db, settings):
             encoded = json.dumps(saved, ensure_ascii=False)
             changed |= encoded != row["snapshot"]
             connection.execute("UPDATE runs SET snapshot=? WHERE id=?", (encoded, row["id"]))
+            from .read_models import run_models
+
+            metadata, configuration = run_models(saved)
+            connection.execute(
+                "UPDATE runs SET metadata=?,configuration=? WHERE id=?",
+                (json.dumps(metadata), json.dumps(configuration), row["id"]),
+            )
         connection.execute("INSERT INTO maintenance VALUES('credential_headers_v1')")
     if changed:
         with db.connect() as connection:

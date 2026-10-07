@@ -10,19 +10,34 @@ def safe_cell(value):
 
 
 def csv_export(run):
+    return "".join(stream_csv(run["results"]))
+
+
+def stream_csv(results):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(
         ["case_id", "status", "target_duration_ms", "input", "output", "reference", "judges"]
     )
-    for result in run["results"]:
+    yield "\ufeff" + output.getvalue()
+    for result in results:
+        output.seek(0)
+        output.truncate(0)
         cells = [result["case_id"], result["status"], result.get("target_duration_ms", "")]
         cells += [
             json.dumps(result.get(key), ensure_ascii=False)
             for key in ("input", "output", "reference", "judges")
         ]
         writer.writerow([safe_cell(cell) for cell in cells])
-    return "\ufeff" + output.getvalue()
+        yield output.getvalue()
+
+
+def stream_json(run, results):
+    run = {k: v for k, v in run.items() if k != "results"}
+    yield json.dumps(run, ensure_ascii=False)[:-1] + ',"results":['
+    for index, result in enumerate(results):
+        yield ("," if index else "") + json.dumps(result, ensure_ascii=False)
+    yield "]}"
 
 
 def percent(value):
@@ -30,6 +45,10 @@ def percent(value):
 
 
 def report(run):
+    return "".join(stream_report(run, run["results"]))
+
+
+def stream_report(run, results):
     def esc(value):
         return html.escape(str(value))
 
@@ -41,11 +60,6 @@ def report(run):
         for f in summary.get("reference", [])
     )
     judge = summary.get("judge", {})
-    details = "".join(
-        f"<details open><summary>{esc(r['case_id'])} · {esc(r['status'])}</summary>"
-        f"<pre>{esc(json.dumps(r, ensure_ascii=False, indent=2))}</pre></details>"
-        for r in run["results"]
-    )
     snapshot = dict(run["snapshot"])
     snapshot["dataset"] = {k: v for k, v in snapshot["dataset"].items() if k != "cases"}
     dataset_note = (
@@ -54,7 +68,7 @@ def report(run):
         else "Konfigurierter Referenzdatensatz."
     )
     config = esc(json.dumps(snapshot, ensure_ascii=False, indent=2))
-    return f"""<!doctype html><html lang="de"><meta charset="utf-8">
+    yield f"""<!doctype html><html lang="de"><meta charset="utf-8">
     <title>Eval Expert Prüfprotokoll</title>
     <style>
     body{{font:16px system-ui;max-width:1000px;margin:40px auto;padding:0 24px;color:#172a2b}}
@@ -78,4 +92,10 @@ def report(run):
     LLM-Urteile sind probabilistische Bewertungen der bereitgestellten Evidenz.
     Ohne Webseiteninhalt ist keine belastbare Aussage über Werbung auf einer Webseite möglich.</p>
     <h2>Konfiguration und Versionen</h2><pre>{config}</pre>
-    <h2>Einzelergebnisse und Begründungen</h2>{details}</html>"""
+    <h2>Einzelergebnisse und Begründungen</h2>"""
+    for r in results:
+        yield (
+            f"<details open><summary>{esc(r['case_id'])} · {esc(r['status'])}</summary>"
+            f"<pre>{esc(json.dumps(r, ensure_ascii=False, indent=2))}</pre></details>"
+        )
+    yield "</html>"

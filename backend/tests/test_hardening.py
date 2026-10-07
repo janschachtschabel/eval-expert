@@ -49,7 +49,9 @@ def test_duplicate_schedule_key_after_restart_advances_schedule(tmp_path, monkey
     )
     due = "2026-01-01T00:00:00+00:00"
     with db.connect() as connection:
-        connection.execute("INSERT INTO schedule_state VALUES(?,?)", (schedule["id"], due))
+        connection.execute(
+            "INSERT INTO schedule_state(id,next_due) VALUES(?,?)", (schedule["id"], due)
+        )
     enqueue(db, {}, schedule_key=f"{schedule['id']}:{due}")
     monkeypatch.setattr("app.scheduler.snapshot", lambda *args: {})
     tick(db)

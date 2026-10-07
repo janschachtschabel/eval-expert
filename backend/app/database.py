@@ -45,8 +45,10 @@ class Database:
                 CREATE TABLE IF NOT EXISTS audit (
                     id INTEGER PRIMARY KEY, at TEXT NOT NULL, user_id TEXT, action TEXT NOT NULL,
                     entity_id TEXT);
-                PRAGMA user_version=1;
             """)
+        from .migrations import migrate
+
+        migrate(self)
 
     @contextmanager
     def connect(self):
@@ -72,7 +74,9 @@ class Database:
     def list_catalog(self, kind):
         with self.connect() as connection:
             rows = connection.execute(
-                "SELECT * FROM catalog WHERE kind=? ORDER BY created DESC", (kind,)
+                "SELECT id,kind,version,list_body AS body,secret,created FROM catalog "
+                "WHERE kind=? ORDER BY created DESC",
+                (kind,),
             ).fetchall()
         return [self.public(row) for row in rows]
 
@@ -122,9 +126,13 @@ class Database:
             encrypted = secret if secret is not None else old["secret"] if old else None
             created = old["created"] if old else now()
             encoded = json.dumps(body, ensure_ascii=False, allow_nan=False)
+            from .read_models import catalog_summary
+
+            listed = json.dumps(catalog_summary(kind, body), ensure_ascii=False)
             connection.execute(
-                "INSERT OR REPLACE INTO catalog VALUES(?,?,?,?,?,?)",
-                (id, kind, version, encoded, encrypted, created),
+                "INSERT OR REPLACE INTO catalog(id,kind,version,body,secret,created,list_body) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (id, kind, version, encoded, encrypted, created, listed),
             )
             connection.execute(
                 "INSERT INTO versions VALUES(?,?,?,?)", (id, version, encoded, now())
@@ -133,6 +141,7 @@ class Database:
                 from .scheduler import next_due
 
                 connection.execute(
-                    "INSERT OR REPLACE INTO schedule_state VALUES(?,?)", (id, next_due(body))
+                    "INSERT OR REPLACE INTO schedule_state(id,next_due) VALUES(?,?)",
+                    (id, next_due(body)),
                 )
         return self.get_catalog(kind, id)

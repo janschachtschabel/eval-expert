@@ -20,11 +20,11 @@ def list_items(kind: str, request: Request, user=Depends(current_user)):
     if kind == "schedules":
         with request.app.state.db.connect() as connection:
             due = {
-                row["id"]: row["next_due"]
+                row["id"]: (row["next_due"], row["last_error"])
                 for row in connection.execute("SELECT * FROM schedule_state")
             }
         for item in items:
-            item["next_due"] = due.get(item["id"])
+            item["next_due"], item["last_error"] = due.get(item["id"], (None, None))
     return items
 
 

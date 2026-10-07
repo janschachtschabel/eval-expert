@@ -47,7 +47,14 @@ def snapshot(db, plan_id):
     return result
 
 
-def enqueue(db, saved, parent_id=None, schedule_key=None):
+def enqueue(db, saved, parent_id=None, schedule_key=None, max_bytes=50_000_000):
+    from .read_models import run_models
+
+    encoded = json.dumps(saved, ensure_ascii=False)
+    size = len(encoded.encode())
+    if size > max_bytes:
+        raise ValueError("Run evidence budget exceeded by the configuration/dataset.")
+    metadata, configuration = run_models(saved)
     id = new_id()
     with db.connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
@@ -59,9 +66,20 @@ def enqueue(db, saved, parent_id=None, schedule_key=None):
                 "Queue limit reached (20 pending runs). Wait for completion or cancel runs."
             )
         connection.execute(
-            """INSERT INTO runs(id,status,snapshot,created,parent_id,schedule_key)
-            VALUES(?,?,?,?,?,?)""",
-            (id, "queued", json.dumps(saved, ensure_ascii=False), now(), parent_id, schedule_key),
+            """INSERT INTO runs(id,status,snapshot,created,parent_id,schedule_key,
+            metadata,configuration,evidence_bytes)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (
+                id,
+                "queued",
+                encoded,
+                now(),
+                parent_id,
+                schedule_key,
+                json.dumps(metadata),
+                json.dumps(configuration),
+                size,
+            ),
         )
     return id
 
@@ -122,57 +140,41 @@ def redact(value):
 
 
 def read_run(db, id, internal=False):
-    with db.connect() as connection:
-        row = connection.execute("SELECT * FROM runs WHERE id=?", (id,)).fetchone()
-        if not row:
-            raise KeyError(id)
-        cases = connection.execute(
-            "SELECT body FROM results WHERE run_id=? ORDER BY ordinal", (id,)
-        ).fetchall()
-    run = dict(row)
-    run["snapshot"], run["summary"] = json.loads(row["snapshot"]), json.loads(row["summary"])
-    run["results"] = [json.loads(case["body"]) for case in cases]
-    run["total"] = len(run["snapshot"]["dataset"]["cases"])
-    run["progress"] = len(cases)
-    if "engine_versions" in run["snapshot"]:
-        run["comparison_key"] = comparison_key(run["snapshot"])
-    return run if internal else redact(run)
+    from .run_queries import cases, frozen, header, iter_results
+
+    run = header(db, id)
+    if internal:
+        run["snapshot"] = frozen(db, id)["snapshot"]
+        run["results"] = list(iter_results(db, id))
+    else:
+        listed = cases(db, id)
+        run["results"] = listed["items"]
+        run["results_total"] = listed["total"]
+    return run
 
 
 def list_runs(db):
-    with db.connect() as connection:
-        rows = connection.execute("""SELECT r.*, COUNT(x.ordinal) AS progress FROM runs r
-            LEFT JOIN results x ON r.id=x.run_id GROUP BY r.id
-            ORDER BY r.created DESC LIMIT 200""").fetchall()
-    result = []
-    for row in rows:
-        saved = json.loads(row["snapshot"])
-        result.append(
-            {
-                key: row[key]
-                for key in ("id", "status", "created", "finished", "progress", "parent_id")
-            }
-            | {
-                "name": saved["plan"]["name"],
-                "plan_id": saved["plan"]["id"],
-                "plan_version": saved["plan"]["version"],
-                "dataset_id": saved["dataset"]["id"],
-                "dataset_version": saved["dataset"]["version"],
-                "mode": saved["plan"]["mode"],
-                "demo": saved["dataset"].get("demo", False),
-                "total": len(saved["dataset"]["cases"]),
-                "summary": json.loads(row["summary"]),
-                "comparison_key": comparison_key(saved),
-            }
-        )
-    return result
+    from .run_queries import page
+
+    return page(db, limit=200)["items"]
 
 
-def save_result(db, id, ordinal, result):
+def save_result(db, id, ordinal, result, max_bytes=50_000_000):
+    from .read_models import case_summary
+
+    encoded = json.dumps(result, ensure_ascii=False)
+    size = len(encoded.encode())
     with db.connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        updated = connection.execute(
+            "UPDATE runs SET evidence_bytes=evidence_bytes+? WHERE id=? AND evidence_bytes+?<=?",
+            (size, id, size, max_bytes),
+        ).rowcount
+        if not updated:
+            raise ValueError("Run evidence budget exceeded; prior evidence is retained.")
         connection.execute(
-            "INSERT INTO results VALUES(?,?,?)",
-            (id, ordinal, json.dumps(result, ensure_ascii=False)),
+            "INSERT INTO results(run_id,ordinal,body,brief) VALUES(?,?,?,?)",
+            (id, ordinal, encoded, json.dumps(case_summary(result, ordinal), ensure_ascii=False)),
         )
 
 

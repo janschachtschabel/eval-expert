@@ -23,7 +23,7 @@ def test_full_queue_keeps_a_schedule_due_until_capacity_returns(team_client):
     )
     due = "2026-01-01T00:00:00+00:00"
     with db.connect() as c:
-        c.execute("INSERT INTO schedule_state VALUES(?,?)", (schedule["id"], due))
+        c.execute("INSERT INTO schedule_state(id,next_due) VALUES(?,?)", (schedule["id"], due))
     tick(db)
     with db.connect() as c:
         assert c.execute("SELECT next_due FROM schedule_state").fetchone()[0] == due

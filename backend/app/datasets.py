@@ -2,6 +2,8 @@ import csv
 import io
 import json
 
+csv.field_size_limit(5_000_000)
+
 
 def parse_dataset(content: str, format: str) -> list[dict]:
     if len(content.encode("utf-8")) > 5_000_000:
@@ -19,7 +21,9 @@ def parse_dataset(content: str, format: str) -> list[dict]:
                         raise ValueError(f"Invalid JSON in line {number}.") from error
         elif format == "csv":
             rows = []
-            for number, row in enumerate(csv.DictReader(io.StringIO(content.lstrip("\ufeff"))), 2):
+            for number, row in enumerate(
+                csv.DictReader(io.StringIO(content.lstrip("\ufeff")), strict=True), 2
+            ):
                 if None in row or any(value is None for value in row.values()):
                     raise ValueError(f"CSV row {number} does not match the header columns.")
                 rows.append(_csv_row(row))
@@ -27,6 +31,8 @@ def parse_dataset(content: str, format: str) -> list[dict]:
             raise ValueError("Use json, jsonl or csv.")
     except json.JSONDecodeError as error:
         raise ValueError(f"Invalid JSON at line {error.lineno}.") from error
+    except csv.Error as error:
+        raise ValueError("Invalid CSV structure or cell size.") from error
     if not isinstance(rows, list) or not 1 <= len(rows) <= 1000:
         raise ValueError("A dataset must contain 1–1000 cases.")
     seen = set()

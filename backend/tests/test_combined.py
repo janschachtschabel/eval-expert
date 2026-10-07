@@ -115,5 +115,7 @@ def test_generic_combined_run_calls_target_once_and_records_judge_protocol(tmp_p
         assert result["summary"]["judge"]["mean_score"] == 0.9
         assert len([r for r in seen if r.url.host == "metadata.example.org"]) == 1
         assert len(seen) == 2
-        assert result["results"][0]["judges"][0]["source_supplied"] is True
+        evidence = c.get("/api/runs/" + id + "/cases/0").json()
+        assert evidence["judges"][0]["source_supplied"] is True
         assert "private-key" not in json.dumps(result)
+        assert "private-key" not in json.dumps(evidence)
