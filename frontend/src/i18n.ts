@@ -98,6 +98,9 @@ export const de: Record<string, string> = {
   schema: "Antwortschema (JSON, optional)",
   preview: "Antwort testen",
   previewInput: "Testeingabe (JSON)",
+  previewHelp:
+    "Die Felder stammen aus der gespeicherten Eingabezuordnung. Ergänze echte Testwerte und prüfe die Datentypen. Bei Übergabe der gesamten Eingabe ergänze das vollständige Objekt. Feste Dienstparameter werden automatisch eingesetzt.",
+  retry: "Erneut laden",
   response: "Antwort",
   format: "Dateiformat",
   dataset: "Datensatz",

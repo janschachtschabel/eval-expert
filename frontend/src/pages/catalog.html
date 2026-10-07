@@ -607,20 +607,7 @@
             }
           </div>
           @if (kind() === "services" && api.isAdmin()) {
-            <details>
-              <summary>{{ "preview" | t }}</summary>
-              <mat-form-field
-                ><mat-label>{{ "previewInput" | t }}</mat-label>
-                <textarea
-                  matInput
-                  [(ngModel)]="previewInput"
-                  class="code"
-                  rows="3"
-                ></textarea></mat-form-field
-              ><button mat-button (click)="preview(item)" [disabled]="busy()">
-                {{ "preview" | t }}
-              </button>
-            </details>
+            <app-service-preview [service]="item" />
           }
         </article>
       }

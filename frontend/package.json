@@ -5,6 +5,7 @@
   "scripts": {
     "start": "ng serve --host 127.0.0.1",
     "build": "ng build",
+    "test:unit": "node --experimental-strip-types --test tests/input-example.unit.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

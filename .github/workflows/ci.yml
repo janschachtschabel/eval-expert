@@ -29,6 +29,8 @@ jobs:
         working-directory: frontend
       - run: npx prettier --check src tests
         working-directory: frontend
+      - run: npm run test:unit
+        working-directory: frontend
       - run: npm run build
         working-directory: frontend
       - run: npx playwright install --with-deps chromium

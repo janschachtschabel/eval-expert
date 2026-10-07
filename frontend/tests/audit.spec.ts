@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { waitForApplication } from "./support";
+import { waitForApplication, signIn } from "./support";
 
 let auditUsername: string;
 test.beforeAll(async ({ request }) => {
@@ -20,15 +20,7 @@ test.beforeAll(async ({ request }) => {
 });
 
 async function login(page: import("@playwright/test").Page) {
-  await page.goto("/");
-  await page.getByLabel("Benutzername").fill(auditUsername);
-  await page
-    .getByLabel("Passwort", { exact: true })
-    .fill(process.env["EVAL_TEST_PASSWORD"] || "Test-password-for-browser!");
-  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Überblick", exact: true }),
-  ).toBeVisible();
+  await signIn(page, auditUsername);
 }
 
 test("delayed demo completion preserves the page selected in the meantime", async ({

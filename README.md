@@ -50,7 +50,7 @@ Use a **VPS with Docker Manager**, not ordinary shared web hosting. The standalo
 a pinned Git tag as its build context, so it needs no pre-uploaded source or local `.env` file:
 
 ```text
-https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07/deploy/docker-compose.hostinger.yml
+https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07-service-inputs/deploy/docker-compose.hostinger.yml
 ```
 
 In Docker Manager, create a Compose project from that URL. Review the Compose environment and set:
@@ -105,6 +105,17 @@ describe the supported VPS Docker Manager flow.
 
 Only an object containing exactly `$input` is substituted; no user code is executed. Pointers
 follow JSON Pointer syntax, including `~0` and `~1` escaping.
+
+After saving, **Antwort testen** loads that service's full configuration and derives editable
+input placeholders from its `$input` pointers. Inputs and responses belong to each service
+card; closing and reopening the test keeps the input for that page session. Constants from
+the mapping are supplied automatically. Enter real values and check their types: pointers
+alone cannot describe scalar/array types or the fields of a whole-object substitution.
+An extractor using `{"url":{"$input":"/url"}}` needs test input such as
+`{"url":"https://www.wirlernenonline.de"}`; it does not need a title.
+
+Reload already open browser tabs after upgrading the application so they use the new
+frontend. Service editors fetch the complete stored configuration when opened.
 
 ```json
 {
@@ -262,6 +273,7 @@ uv run pytest -q
 uv run ruff check app tests
 cd ../frontend
 npm ci
+npm run test:unit
 npm run build
 npx playwright install chromium
 cd ..

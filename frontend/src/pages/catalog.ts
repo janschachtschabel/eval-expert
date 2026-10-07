@@ -4,10 +4,11 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { Api, ApiError, Item } from "../api";
 import { UI, pretty } from "../ui";
 import { tr } from "../i18n";
+import { ServicePreview } from "./service-preview";
 
 @Component({
   standalone: true,
-  imports: [...UI, RouterLink],
+  imports: [...UI, RouterLink, ServicePreview],
   templateUrl: "./catalog.html",
 })
 export class CatalogPage {
@@ -34,7 +35,6 @@ export class CatalogPage {
   format = "jsonl";
   steps = "";
   aliases: string[] = [];
-  previewInput = '{"title":"Beispiel"}';
   frequency = "weekly";
   scheduleDates = signal<string[]>([]);
   help: Record<string, string> = {
@@ -254,20 +254,6 @@ export class CatalogPage {
     form["method"] = op["method"];
     if (!form["name"]) form["name"] = op["name"];
     this.extra.set(pretty(op["input_schema"] || op["parameters"]));
-  }
-  async preview(item: Item) {
-    this.busy.set(true);
-    try {
-      const result = await this.api.request("/connections/preview", "POST", {
-        service_id: item["id"],
-        input: JSON.parse(this.previewInput),
-      });
-      this.extra.set(pretty(result));
-    } catch (e) {
-      this.api.fail(e);
-    } finally {
-      this.busy.set(false);
-    }
   }
   async models(item: Item) {
     this.busy.set(true);
