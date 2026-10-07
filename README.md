@@ -22,7 +22,7 @@ Prerequisites: Docker Engine/Desktop with Compose and Python for the environment
 ```sh
 git clone https://github.com/janschachtschabel/eval-expert.git
 cd eval-expert
-git checkout preview-2026-10-06
+git checkout preview-2026-10-07-profile-editor
 python scripts/init_env.py --dev
 docker compose up -d --build
 ```
@@ -50,7 +50,7 @@ Use a **VPS with Docker Manager**, not ordinary shared web hosting. The standalo
 a pinned Git tag as its build context, so it needs no pre-uploaded source or local `.env` file:
 
 ```text
-https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07-service-inputs/deploy/docker-compose.hostinger.yml
+https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07-profile-editor/deploy/docker-compose.hostinger.yml
 ```
 
 In Docker Manager, create a Compose project from that URL. Review the Compose environment and set:
@@ -98,6 +98,8 @@ describe the supported VPS Docker Manager flow.
 4. For qualitative assessments, add an LLM connection and criteria. Choose the model-specific
    token parameter, optional temperature and optional JSON mode deliberately.
 5. In **Prüfprofile**, select service, dataset, evaluation method and reference fields or criteria.
+   For advertising assessment of extracted text, choose **LLM-Bewertung**, the LLM connection
+   and the advertising criterion; URL-only cases need no reference classification fields.
 6. Start a run or create a cron schedule. Inspect individual responses and judge reasons before
    interpreting aggregate scores. Export CSV/JSON or open the printable protocol.
 
@@ -207,7 +209,8 @@ API read contracts: `GET /api/runs/page?limit=50&offset=0` returns `items`, `tot
 returns configuration without dataset cases and the first 25 case summaries. Use
 `GET /api/runs/{id}/status`, `/cases?limit=25&offset=0` and `/cases/{ordinal}` for progress,
 case pages and complete individual evidence (zero-based ordinal). Catalog lists contain small
-summaries; fetch `/api/catalog/{kind}/{id}` before editing. The legacy `/api/runs` list is limited
+summaries; dataset options use `case_count`, without case bodies. Fetch
+`/api/catalog/{kind}/{id}` before editing. The legacy `/api/runs` list is limited
 to 200 summaries; use `/page` for the complete history. Run reads include aggregate reference
 metrics and class counts. Per-label scores use `/api/runs/{id}/classes?field=subject&limit=50&offset=0`;
 the complete class tables remain in JSON exports.

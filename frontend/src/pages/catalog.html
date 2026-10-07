@@ -334,7 +334,7 @@
               >
                 @for (o of lookups()["datasets"]; track o["id"]) {
                   <mat-option [value]="o['id']"
-                    >{{ o["name"] }} · {{ o["cases"].length }}
+                    >{{ o["name"] }} · {{ o["case_count"] }}
                     {{ "cases" | t }}</mat-option
                   >
                 }

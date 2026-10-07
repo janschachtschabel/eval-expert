@@ -3,7 +3,7 @@
 services:
   eval-expert:
     build:
-      context: https://github.com/janschachtschabel/eval-expert.git#preview-2026-10-07-service-inputs
+      context: https://github.com/janschachtschabel/eval-expert.git#preview-2026-10-07-profile-editor
     image: eval-expert:local
     restart: unless-stopped
     environment:
