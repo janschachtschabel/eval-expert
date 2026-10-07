@@ -91,9 +91,12 @@ def save(kind, body, request, user, id=None):
             from .scheduler import next_due
 
             next_due(data)
-    except (ValidationError, ValueError) as error:
-        message = str(error).split("For further")[0][:500]
-        raise HTTPException(422, message) from error
+    except ValidationError as error:
+        raise HTTPException(
+            422, error.errors(include_input=False, include_url=False, include_context=False)
+        ) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)[:500]) from error
     encrypted = None
     if key:
         encrypted = cipher(request.app.state.settings).encrypt(key.encode()).decode()

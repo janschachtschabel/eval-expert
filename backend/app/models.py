@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 
 class Named(BaseModel):
@@ -89,6 +90,13 @@ class Plan(Named):
             self.fields = []
         if self.mode == "reference":
             self.criterion_ids, self.provider_id = [], None
+        if self.mode != "judge" and not self.fields:
+            raise PydanticCustomError("reference_fields_required", "Select reference fields.")
+        if self.mode != "reference":
+            if not self.provider_id:
+                raise PydanticCustomError("judge_provider_required", "Select an LLM provider.")
+            if not self.criterion_ids:
+                raise PydanticCustomError("judge_criteria_required", "Select evaluation criteria.")
         if len({field.name for field in self.fields}) != len(self.fields):
             raise ValueError("Reference field names must be unique.")
         return self

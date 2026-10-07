@@ -102,6 +102,8 @@ def test_judge_mode_clears_hidden_reference_fields():
         service_id="s",
         dataset_id="d",
         mode="judge",
+        provider_id="provider",
+        criterion_ids=["criterion"],
         fields=[{"name": "subject", "output_path": "/subject", "reference_path": "/subject"}],
     )
     assert plan.fields == []
