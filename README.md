@@ -22,7 +22,7 @@ Prerequisites: Docker Engine/Desktop with Compose and Python for the environment
 ```sh
 git clone https://github.com/janschachtschabel/eval-expert.git
 cd eval-expert
-git checkout preview-2026-10-07-profile-editor
+git checkout preview-2026-10-07-functional-audit
 python scripts/init_env.py --dev
 docker compose up -d --build
 ```
@@ -50,7 +50,7 @@ Use a **VPS with Docker Manager**, not ordinary shared web hosting. The standalo
 a pinned Git tag as its build context, so it needs no pre-uploaded source or local `.env` file:
 
 ```text
-https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07-profile-editor/deploy/docker-compose.hostinger.yml
+https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07-functional-audit/deploy/docker-compose.hostinger.yml
 ```
 
 In Docker Manager, create a Compose project from that URL. Review the Compose environment and set:
@@ -215,6 +215,18 @@ to 200 summaries; use `/page` for the complete history. Run reads include aggreg
 metrics and class counts. Per-label scores use `/api/runs/{id}/classes?field=subject&limit=50&offset=0`;
 the complete class tables remain in JSON exports.
 
+Profile summaries also include `service_id`, `provider_id`, `criterion_ids` and
+`field_count`, so the UI can explain missing setup before starting. Case summaries
+include `input_preview`: at most 240 characters from `input.title` or `input.url`.
+Complete input and responses remain available only through case detail and exports.
+
+Profile saves reject incomplete mode configuration with HTTP 422: reference and
+combined modes require reference fields; judge and combined modes require an LLM
+provider and criteria. Catalog validation returns a `detail` array of Pydantic
+issues (`type`, `loc`, `msg`), excluding input, context and documentation URLs.
+Existing incomplete profiles remain editable; their start button explains what is
+missing. Credentials must also be configured before a judge run starts.
+
 Schedules use five-field cron expressions and IANA time zones, defaulting to `Europe/Berlin`.
 `0 8 * * 1` means Monday at 08:00 local time. The worker checks schedules roughly every 30 seconds
 between runs; long evaluations can delay a due schedule. Missed intervals produce one catch-up
@@ -237,7 +249,7 @@ Catalog updates require the version read by the editor (`version` on PUT). Stale
 409 and preserve the current record; the UI offers explicit reload. Deleting resources referenced
 by profiles or schedules returns 409. Historical run snapshots do not block deletion.
 
-On upgrade, the SQLite schema moves automatically to version 3, backfilling small read models
+On upgrade, the SQLite schema moves automatically to version 4, backfilling small read models
 without discarding original snapshots, results, accounts or catalog versions. A one-time
 credential migration encrypts configured authentication headers in legacy connection bodies,
 scrubs public history and vacuums freed database pages. Keep `EVAL_SECRET_KEY` unchanged.

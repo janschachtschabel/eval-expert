@@ -1,5 +1,20 @@
 # Verification record
 
+The latest functional repair is documented in
+[2026-10-07-functional-audit.md](audits/2026-10-07-functional-audit.md):
+59 backend tests, six unit tests and 17 browser tests against the built image.
+The nine-view journey runs the actual API, worker and DeepEval with controlled
+external HTTP responses. Start the expanded suite's application from the repository
+root with isolated data:
+
+```sh
+uv run --project backend uvicorn browser_app:create_test_app --factory --app-dir backend/tests --port 8117
+```
+
+The test-only factory is not included in the production image. Separately, the
+user's configured staging extractor and direct OpenAI completed the actual
+five-URL judge profile with five valid judgments and no technical errors.
+
 First delivery, verified locally on 6 October 2026 UTC / 7 October Europe/Berlin.
 The application code uses the committed dependency lockfiles. Live provider credentials and user
 datasets were unavailable; network tests use explicit simulated HTTP boundaries.
