@@ -4,7 +4,9 @@ import json
 
 
 def header(db, id, configuration=True):
-    columns = "id,status,created,finished,parent_id,summary,metadata,evidence_bytes"
+    columns = (
+        "id,status,created,finished,parent_id,summary_brief AS summary,metadata,evidence_bytes"
+    )
     if configuration:
         columns += ",configuration"
     with db.connect() as c:
@@ -35,7 +37,8 @@ def page(db, limit=50, offset=0, comparison=None, status=None):
     with db.connect() as c:
         total = c.execute("SELECT COUNT(*) FROM runs" + where, args).fetchone()[0]
         rows = c.execute(
-            "SELECT id,status,created,finished,parent_id,summary,metadata,evidence_bytes,"
+            "SELECT id,status,created,finished,parent_id,summary_brief AS summary,"
+            "metadata,evidence_bytes,"
             "(SELECT COUNT(*) FROM results WHERE run_id=r.id) AS progress FROM runs r"
             + where
             + " ORDER BY created DESC,id DESC LIMIT ? OFFSET ?",
@@ -60,6 +63,39 @@ def cases(db, id, limit=25, offset=0):
     return {
         "items": [json.loads(row["brief"]) for row in rows],
         "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+def full_summary(db, id):
+    with db.connect() as c:
+        row = c.execute("SELECT summary FROM runs WHERE id=?", (id,)).fetchone()
+    if not row:
+        raise KeyError(id)
+    return json.loads(row["summary"])
+
+
+def classes(db, id, field, limit=50, offset=0):
+    source = "FROM runs r JOIN json_each(r.summary,'$.reference') f "
+    where = " WHERE r.id=? AND json_extract(f.value,'$.name')=?"
+    with db.connect() as c:
+        row = c.execute(
+            "SELECT json_array_length(f.value,'$.classes') " + source + where, (id, field)
+        ).fetchone()
+        if row is None:
+            raise KeyError(field)
+        rows = c.execute(
+            "SELECT l.value "
+            + source
+            + "JOIN json_each(f.value,'$.classes') l "
+            + where
+            + " ORDER BY CAST(l.key AS INTEGER) LIMIT ? OFFSET ?",
+            (id, field, limit, offset),
+        ).fetchall()
+    return {
+        "items": [json.loads(r[0]) for r in rows],
+        "total": row[0] or 0,
         "limit": limit,
         "offset": offset,
     }

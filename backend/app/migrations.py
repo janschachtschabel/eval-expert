@@ -2,18 +2,19 @@
 
 import json
 
-from .read_models import case_summary, catalog_summary, run_models
+from .read_models import case_summary, catalog_summary, run_models, summary_brief
 
 
 def migrate(db):
     with db.connect() as c:
-        if c.execute("PRAGMA user_version").fetchone()[0] >= 2:
+        if c.execute("PRAGMA user_version").fetchone()[0] >= 3:
             return
         c.execute("BEGIN IMMEDIATE")
         for table, column, definition in [
             ("catalog", "list_body", "TEXT NOT NULL DEFAULT '{}'"),
             ("runs", "metadata", "TEXT NOT NULL DEFAULT '{}'"),
             ("runs", "configuration", "TEXT NOT NULL DEFAULT '{}'"),
+            ("runs", "summary_brief", "TEXT NOT NULL DEFAULT '{}'"),
             ("runs", "evidence_bytes", "INTEGER NOT NULL DEFAULT 0"),
             ("results", "brief", "TEXT NOT NULL DEFAULT '{}'"),
             ("schedule_state", "last_error", "TEXT"),
@@ -25,7 +26,7 @@ def migrate(db):
                 "UPDATE catalog SET list_body=? WHERE id=?",
                 (json.dumps(catalog_summary(row["kind"], json.loads(row["body"]))), row["id"]),
             )
-        for row in c.execute("SELECT id,snapshot FROM runs"):
+        for row in c.execute("SELECT id,snapshot,summary FROM runs"):
             metadata, configuration = run_models(json.loads(row["snapshot"]))
             size = (
                 len(row["snapshot"].encode())
@@ -36,8 +37,15 @@ def migrate(db):
                 ).fetchone()[0]
             )
             c.execute(
-                "UPDATE runs SET metadata=?,configuration=?,evidence_bytes=? WHERE id=?",
-                (json.dumps(metadata), json.dumps(configuration), size, row["id"]),
+                "UPDATE runs SET metadata=?,configuration=?,evidence_bytes=?,summary_brief=? "
+                "WHERE id=?",
+                (
+                    json.dumps(metadata),
+                    json.dumps(configuration),
+                    size,
+                    json.dumps(summary_brief(json.loads(row["summary"]))),
+                    row["id"],
+                ),
             )
         for row in c.execute("SELECT run_id,ordinal,body FROM results"):
             c.execute(
@@ -53,4 +61,4 @@ def migrate(db):
             "CREATE INDEX IF NOT EXISTS runs_comparison "
             "ON runs(json_extract(metadata,'$.comparison_key'),created,id)"
         )
-        c.execute("PRAGMA user_version=2")
+        c.execute("PRAGMA user_version=3")

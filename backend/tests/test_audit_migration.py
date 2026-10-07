@@ -53,6 +53,7 @@ def test_v1_upgrade_preserves_evidence_versions_accounts_and_credentials(tmp_pat
             ("catalog", "list_body"),
             ("runs", "metadata"),
             ("runs", "configuration"),
+            ("runs", "summary_brief"),
             ("runs", "evidence_bytes"),
             ("results", "brief"),
             ("schedule_state", "last_error"),
@@ -71,7 +72,7 @@ def test_v1_upgrade_preserves_evidence_versions_accounts_and_credentials(tmp_pat
     assert cipher(settings).decrypt(internal["_secret"].encode()).decode() == "legacy-credential"
     assert "legacy-credential" not in json.dumps(header(upgraded, "run"))
     with upgraded.connect() as c:
-        assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert c.execute("PRAGMA user_version").fetchone()[0] == 3
         assert (
             c.execute("SELECT username FROM users WHERE id='user'").fetchone()[0] == "legacy-user"
         )

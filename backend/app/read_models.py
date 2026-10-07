@@ -62,3 +62,16 @@ def case_summary(result, ordinal):
         "ordinal": ordinal,
         "judge_count": len(result.get("judges", [])),
     }
+
+
+def summary_brief(summary):
+    return {
+        **summary,
+        "reference": [
+            {
+                **{k: v for k, v in field.items() if k != "classes"},
+                "class_count": len(field.get("classes", [])),
+            }
+            for field in summary.get("reference", [])
+        ],
+    }

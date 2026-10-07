@@ -197,7 +197,9 @@ returns configuration without dataset cases and the first 25 case summaries. Use
 `GET /api/runs/{id}/status`, `/cases?limit=25&offset=0` and `/cases/{ordinal}` for progress,
 case pages and complete individual evidence (zero-based ordinal). Catalog lists contain small
 summaries; fetch `/api/catalog/{kind}/{id}` before editing. The legacy `/api/runs` list is limited
-to 200 summaries; use `/page` for the complete history.
+to 200 summaries; use `/page` for the complete history. Run reads include aggregate reference
+metrics and class counts. Per-label scores use `/api/runs/{id}/classes?field=subject&limit=50&offset=0`;
+the complete class tables remain in JSON exports.
 
 Schedules use five-field cron expressions and IANA time zones, defaulting to `Europe/Berlin`.
 `0 8 * * 1` means Monday at 08:00 local time. The worker checks schedules roughly every 30 seconds
@@ -221,7 +223,7 @@ Catalog updates require the version read by the editor (`version` on PUT). Stale
 409 and preserve the current record; the UI offers explicit reload. Deleting resources referenced
 by profiles or schedules returns 409. Historical run snapshots do not block deletion.
 
-On upgrade, the SQLite schema moves automatically to version 2, backfilling small read models
+On upgrade, the SQLite schema moves automatically to version 3, backfilling small read models
 without discarding original snapshots, results, accounts or catalog versions. A one-time
 credential migration encrypts configured authentication headers in legacy connection bodies,
 scrubs public history and vacuums freed database pages. Keep `EVAL_SECRET_KEY` unchanged.

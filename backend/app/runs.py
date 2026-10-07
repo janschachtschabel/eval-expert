@@ -76,6 +76,21 @@ def case(id: str, ordinal: int, request: Request, user=Depends(current_user)):
         raise HTTPException(404, "Case not found.") from error
 
 
+@router.get("/{id}/classes")
+def classes(
+    id: str,
+    request: Request,
+    field: str = Query(min_length=1, max_length=100),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user=Depends(current_user),
+):
+    try:
+        return run_queries.classes(request.app.state.db, id, field, limit, offset)
+    except KeyError as error:
+        raise HTTPException(404, "Reference field not found.") from error
+
+
 @router.get("/{id}")
 def detail(id: str, request: Request, user=Depends(current_user)):
     return find(request, id)
@@ -130,6 +145,7 @@ def export(id: str, request: Request, format: str = "json", user=Depends(current
     rows = run_queries.iter_results(request.app.state.db, id, run["progress"])
     if format == "json":
         run["snapshot"] = redact(run_queries.frozen(request.app.state.db, id)["snapshot"])
+        run["summary"] = run_queries.full_summary(request.app.state.db, id)
     body = stream_csv(rows) if format == "csv" else stream_json(run, rows)
     return StreamingResponse(
         body,
@@ -141,6 +157,7 @@ def export(id: str, request: Request, format: str = "json", user=Depends(current
 @router.get("/{id}/report")
 def printable(id: str, request: Request, user=Depends(current_user)):
     run = find(request, id)
+    run["summary"] = run_queries.full_summary(request.app.state.db, id)
     return StreamingResponse(
         stream_report(run, run_queries.iter_results(request.app.state.db, id, run["progress"])),
         media_type="text/html",

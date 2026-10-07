@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from app.run_store import enqueue, save_result, snapshot
+from app.run_store import enqueue, finish, save_result, snapshot
 from app.runner import execute_run
 
 
@@ -68,3 +68,44 @@ def test_run_evidence_budget_is_atomic(team_client):
         save_result(db, id, 0, {"large": "x" * 300}, max_bytes=100)
     with db.connect() as c:
         assert c.execute("SELECT COUNT(*) FROM results WHERE run_id=?", (id,)).fetchone()[0] == 0
+
+
+def test_large_class_vocabulary_is_paged_without_inflating_history(team_client):
+    client, headers = team_client
+    plan = client.post("/api/demo", headers=headers).json()["plan_id"]
+    db = client.app.state.db
+    id = enqueue(db, snapshot(db, plan))
+    classes = [
+        {
+            "label": str(i),
+            "support": 1,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1,
+            "tp": 1,
+            "fp": 0,
+            "fn": 0,
+        }
+        for i in range(10000)
+    ]
+    finish(
+        db,
+        id,
+        "completed",
+        {
+            "reference": [
+                {"name": "subject", "classes": classes, "micro": {"f1": 1}, "macro": {"f1": 1}}
+            ]
+        },
+    )
+    for path in ("/api/runs/page", f"/api/runs/{id}/status", f"/api/runs/{id}"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert len(response.content) < 20000
+    page = client.get(f"/api/runs/{id}/classes?field=subject&limit=50&offset=9950").json()
+    assert page["total"] == 10000 and len(page["items"]) == 50
+    assert page["items"][-1]["label"] == "9999"
+    assert (
+        len(client.get(f"/api/runs/{id}/export").json()["summary"]["reference"][0]["classes"])
+        == 10000
+    )

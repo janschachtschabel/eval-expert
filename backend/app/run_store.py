@@ -179,8 +179,16 @@ def save_result(db, id, ordinal, result, max_bytes=50_000_000):
 
 
 def finish(db, id, status, summary):
+    from .read_models import summary_brief
+
     with db.connect() as connection:
         connection.execute(
-            "UPDATE runs SET status=?,summary=?,finished=? WHERE id=?",
-            (status, json.dumps(summary, allow_nan=False), now(), id),
+            "UPDATE runs SET status=?,summary=?,summary_brief=?,finished=? WHERE id=?",
+            (
+                status,
+                json.dumps(summary, allow_nan=False),
+                json.dumps(summary_brief(summary), allow_nan=False),
+                now(),
+                id,
+            ),
         )
