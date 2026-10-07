@@ -4,6 +4,10 @@ import json
 from .database import new_id, now
 
 
+class QueueFull(ValueError):
+    pass
+
+
 def snapshot(db, plan_id):
     plan = db.get_catalog("plans", plan_id)
     result = {
@@ -51,7 +55,7 @@ def enqueue(db, saved, parent_id=None, schedule_key=None):
             "SELECT COUNT(*) FROM runs WHERE status IN ('queued','running')"
         ).fetchone()[0]
         if pending >= 20:
-            raise ValueError(
+            raise QueueFull(
                 "Queue limit reached (20 pending runs). Wait for completion or cancel runs."
             )
         connection.execute(

@@ -109,3 +109,12 @@ MODELS = {
     "plans": Plan,
     "schedules": Schedule,
 }
+
+
+class RunStart(BaseModel):
+    plan_id: str = Field(min_length=1, max_length=100)
+
+
+class SchedulePreview(BaseModel):
+    cron: str = Field(min_length=1, max_length=100)
+    timezone: str = Field(min_length=1, max_length=100)

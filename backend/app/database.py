@@ -103,10 +103,21 @@ class Database:
             "has_secret": bool(row["secret"]),
         }
 
-    def save_catalog(self, kind, body, id=None, secret=None):
+    def save_catalog(
+        self, kind, body, id=None, secret=None, expected_version=None, check_refs=False
+    ):
         id = id or new_id()
         with self.connect() as connection:
+            from .catalog_integrity import CatalogConflict, validate_references
+
+            connection.execute("BEGIN IMMEDIATE")
             old = connection.execute("SELECT * FROM catalog WHERE id=?", (id,)).fetchone()
+            if expected_version is not None and (not old or old["version"] != expected_version):
+                raise CatalogConflict(
+                    "This configuration changed. Reload before saving your edits."
+                )
+            if check_refs:
+                validate_references(connection, kind, body)
             version = old["version"] + 1 if old else 1
             encrypted = secret if secret is not None else old["secret"] if old else None
             created = old["created"] if old else now()
@@ -118,4 +129,10 @@ class Database:
             connection.execute(
                 "INSERT INTO versions VALUES(?,?,?,?)", (id, version, encoded, now())
             )
+            if check_refs and kind == "schedules":
+                from .scheduler import next_due
+
+                connection.execute(
+                    "INSERT OR REPLACE INTO schedule_state VALUES(?,?)", (id, next_due(body))
+                )
         return self.get_catalog(kind, id)

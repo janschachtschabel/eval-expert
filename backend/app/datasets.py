@@ -18,7 +18,11 @@ def parse_dataset(content: str, format: str) -> list[dict]:
                     except json.JSONDecodeError as error:
                         raise ValueError(f"Invalid JSON in line {number}.") from error
         elif format == "csv":
-            rows = [_csv_row(row) for row in csv.DictReader(io.StringIO(content.lstrip("\ufeff")))]
+            rows = []
+            for number, row in enumerate(csv.DictReader(io.StringIO(content.lstrip("\ufeff"))), 2):
+                if None in row or any(value is None for value in row.values()):
+                    raise ValueError(f"CSV row {number} does not match the header columns.")
+                rows.append(_csv_row(row))
         else:
             raise ValueError("Use json, jsonl or csv.")
     except json.JSONDecodeError as error:

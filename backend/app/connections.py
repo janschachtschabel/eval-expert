@@ -3,6 +3,7 @@ from urllib.parse import urljoin
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .auth import administrators, editors
+from .models import SchedulePreview
 from .runner import decrypted, safe_error
 from .target import call_target, request_json, validate_url
 
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/connections")
 
 
 @router.post("/schedule-preview")
-def schedule_preview(body: dict, user=Depends(editors)):
+def schedule_preview(body: SchedulePreview, user=Depends(editors)):
     from datetime import datetime
 
     from .scheduler import next_due
@@ -18,7 +19,7 @@ def schedule_preview(body: dict, user=Depends(editors)):
     try:
         dates, after = [], None
         for _ in range(5):
-            value = next_due(body, after)
+            value = next_due(body.model_dump(), after)
             dates.append(value)
             after = datetime.fromisoformat(value)
         return {"dates": dates}

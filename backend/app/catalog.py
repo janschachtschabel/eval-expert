@@ -67,10 +67,15 @@ def save(kind, body, request, user, id=None):
     if id:
         get_item(kind, id, request, user)
     body = dict(body)
+    expected_version = body.get("version") if id else None
+    if id and (type(expected_version) is not int or expected_version < 1):
+        raise HTTPException(422, "An update requires the version you opened.")
     key = body.pop("api_key", None)
     if key is not None and (not isinstance(key, str) or len(key) > 4096):
         raise HTTPException(422, "Credentials must be a string of at most 4096 characters.")
     if kind == "datasets" and "content" in body:
+        if not isinstance(body["content"], str):
+            raise HTTPException(422, "Dataset content must be text.")
         try:
             body["cases"] = parse_dataset(body.pop("content"), body.pop("format", "jsonl"))
         except ValueError as error:
@@ -94,15 +99,15 @@ def save(kind, body, request, user, id=None):
         encrypted = cipher(request.app.state.settings).encrypt(key.encode()).decode()
     if body.get("clear_secret"):
         encrypted = ""
-    item = request.app.state.db.save_catalog(kind, data, id, encrypted)
-    request.app.state.db.audit(user["id"], f"{kind}.saved", item["id"])
-    if kind == "schedules":
-        from .scheduler import next_due
+    from .catalog_integrity import CatalogConflict
 
-        with request.app.state.db.connect() as connection:
-            connection.execute(
-                "INSERT OR REPLACE INTO schedule_state VALUES(?,?)", (item["id"], next_due(data))
-            )
+    try:
+        item = request.app.state.db.save_catalog(kind, data, id, encrypted, expected_version, True)
+    except CatalogConflict as error:
+        raise HTTPException(409, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    request.app.state.db.audit(user["id"], f"{kind}.saved", item["id"])
     return item
 
 
@@ -119,7 +124,10 @@ def update(kind: str, id: str, body: dict, request: Request, user=Depends(editor
 @router.delete("/{kind}/{id}", status_code=204)
 def delete(kind: str, id: str, request: Request, user=Depends(administrators)):
     get_item(kind, id, request, user)
-    with request.app.state.db.connect() as connection:
-        connection.execute("DELETE FROM catalog WHERE id=?", (id,))
-        connection.execute("DELETE FROM schedule_state WHERE id=?", (id,))
+    from .catalog_integrity import CatalogInUse, delete_catalog
+
+    try:
+        delete_catalog(request.app.state.db, kind, id)
+    except CatalogInUse as error:
+        raise HTTPException(409, str(error)) from error
     request.app.state.db.audit(user["id"], f"{kind}.deleted", id)

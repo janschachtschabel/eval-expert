@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
 
-from .run_store import enqueue, snapshot
+from .run_store import QueueFull, enqueue, snapshot
 
 
 def next_due(config, after=None):
@@ -40,6 +40,9 @@ def tick(db):
         except IntegrityError:
             # Recovery after enqueue committed but next_due did not: never enqueue twice.
             pass
+        except QueueFull:
+            db.audit(None, "schedule.queue_full", config["id"])
+            continue
         except (KeyError, ValueError):
             db.audit(None, "schedule.configuration_error", config["id"])
         # Missed intervals are collapsed to one run, not replayed as a burst.

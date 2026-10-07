@@ -5,7 +5,8 @@ from fastapi.responses import HTMLResponse, Response
 
 from .auth import current_user, editors
 from .exports import csv_export, report
-from .run_store import enqueue, list_runs, read_run, snapshot
+from .models import RunStart
+from .run_store import QueueFull, enqueue, list_runs, read_run, snapshot
 
 router = APIRouter(prefix="/runs")
 
@@ -23,11 +24,13 @@ def list_all(request: Request, user=Depends(current_user)):
 
 
 @router.post("")
-def start(body: dict, request: Request, user=Depends(editors)):
+def start(body: RunStart, request: Request, user=Depends(editors)):
     db = request.app.state.db
     try:
-        saved = snapshot(db, body["plan_id"])
+        saved = snapshot(db, body.plan_id)
         id = enqueue(db, saved)
+    except QueueFull as error:
+        raise HTTPException(409, str(error)) from error
     except (KeyError, ValueError) as error:
         raise HTTPException(422, str(error)) from error
     db.audit(user["id"], "run.started", id)
@@ -52,7 +55,10 @@ def cancel(id: str, request: Request, user=Depends(editors)):
 @router.post("/{id}/recompute")
 def recompute(id: str, request: Request, user=Depends(editors)):
     db = request.app.state.db
-    old = read_run(db, id, True)
+    try:
+        old = read_run(db, id, True)
+    except KeyError as error:
+        raise HTTPException(404, "Run not found.") from error
     if old["progress"] != old["total"] or old["status"] != "completed":
         raise HTTPException(422, "Only complete runs can reuse all responses.")
     try:
@@ -66,7 +72,10 @@ def recompute(id: str, request: Request, user=Depends(editors)):
         raise HTTPException(422, "Dataset changed; start a new target run.")
     saved["service"] = old["snapshot"]["service"]
     saved["plan"]["service_id"] = saved["service"]["id"]
-    new = enqueue(db, saved, parent_id=id)
+    try:
+        new = enqueue(db, saved, parent_id=id)
+    except QueueFull as error:
+        raise HTTPException(409, str(error)) from error
     db.audit(user["id"], "run.recomputed", new)
     return read_run(db, new)
 
