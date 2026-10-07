@@ -2,14 +2,15 @@ import asyncio
 import logging
 import time
 
+from .aggregation import SummaryAccumulator
 from .auth import cipher
-from .benchmarks import compare_fields, labels
+from .benchmarks import labels
 from .database import now
 from .judge import JudgeModel, evaluate
 from .pointers import get_pointer
 from .run_store import finish, read_run, save_result
 from .scheduler import tick
-from .target import call_target
+from .target import ResponseValidationError, call_target
 
 
 def recover(db):
@@ -43,11 +44,18 @@ async def execute_case(app, saved, case, reused=None, run_id=None):
         "status": "success",
         "judges": [],
         "reused_response": reused is not None,
+        "field_errors": {},
     }
     try:
         if reused is not None:
             result["output"] = reused["output"]
-            result["status"] = reused["status"] if reused["status"] == "target_error" else "success"
+            result["status"] = (
+                reused["status"]
+                if reused["status"] in ("target_error", "schema_error")
+                else "success"
+            )
+            if result["status"] == "schema_error":
+                result["error"] = reused.get("error", "Original response failed schema validation.")
             if result["status"] == "target_error":
                 result["error"] = reused.get("error", "Original target request failed.")
                 return result
@@ -58,14 +66,25 @@ async def execute_case(app, saved, case, reused=None, run_id=None):
                 app.state.settings,
                 decrypted(saved["service"], app.state.settings),
             )
-        for spec in saved["plan"]["fields"]:
-            labels(get_pointer(result["output"], spec["output_path"]), spec.get("aliases"))
+    except ResponseValidationError as error:
+        result["status"], result["error"], result["output"] = (
+            "schema_error",
+            str(error),
+            error.output,
+        )
     except Exception as error:
         result["status"] = "target_error"
         result["error"] = safe_error(error)
         result["output"] = None
     result["target_duration_ms"] = round((time.monotonic() - start) * 1000)
-    if result["status"] == "success":
+    if result["status"] != "target_error":
+        for spec in saved["plan"]["fields"]:
+            try:
+                labels(get_pointer(result["output"], spec["output_path"]), spec.get("aliases"))
+            except ValueError as error:
+                result["field_errors"][spec["name"]] = str(error)
+                if result["status"] == "success":
+                    result["status"] = "field_error"
         for criterion in saved["criteria"]:
             if is_cancelled(app.state.db, run_id):
                 break
@@ -99,28 +118,10 @@ def safe_error(error):
 
 
 def summarize(results, saved):
-    verdicts = [j for result in results for j in result["judges"]]
-    good = [j for j in verdicts if j["status"] == "success"]
-    expected = len(results) * len(saved["criteria"])
-    return {
-        "reference": compare_fields(results, saved["plan"]["fields"]),
-        "target_success_rate": sum(r["status"] == "success" for r in results) / len(results)
-        if results
-        else 0,
-        "target_errors": sum(r["status"] != "success" for r in results),
-        "judge": {
-            "mean_score": sum(j["score"] for j in good) / len(good) if good else None,
-            "pass_rate": sum(j["passed"] for j in good) / len(good) if good else None,
-            "valid": len(good),
-            "expected": expected,
-            "coverage": len(good) / expected if expected else None,
-            "errors": len(verdicts) - len(good),
-        },
-        "usage": {
-            name: sum(j.get("usage", {}).get(name, 0) for j in verdicts)
-            for name in ("prompt_tokens", "completion_tokens", "requests")
-        },
-    }
+    accumulator = SummaryAccumulator(saved)
+    for result in results:
+        accumulator.add(result)
+    return accumulator.summary()
 
 
 async def execute_run(app, id):

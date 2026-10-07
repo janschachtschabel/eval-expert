@@ -1,6 +1,7 @@
 """Reference metrics: target errors remain in the primary denominator."""
 
-import numpy as np
+from collections import Counter
+
 from sklearn.metrics import precision_recall_fscore_support
 
 from .pointers import MISSING, get_pointer
@@ -22,11 +23,11 @@ def labels(value, aliases=None):
 
 def scores(tp, fp, fn):
     # scikit-learn calculates standard binary metrics; null preserves undefined scores.
-    truth = [1] * tp + [0] * fp + [1] * fn
-    pred = [1] * tp + [1] * fp + [0] * fn
-    if not truth:
+    if not tp + fp + fn:
         return {"precision": None, "recall": None, "f1": None}
-    p, r, f, _ = precision_recall_fscore_support(truth, pred, average="binary", zero_division=0)
+    p, r, f, _ = precision_recall_fscore_support(
+        [1, 0, 1], [1, 1, 0], sample_weight=[tp, fp, fn], average="binary", zero_division=0
+    )
     return {
         "precision": float(p) if tp + fp else None,
         "recall": float(r) if tp + fn else None,
@@ -39,49 +40,76 @@ def compare_fields(results: list[dict], specs: list[dict]) -> list[dict]:
 
 
 def _compare(results, spec):
-    pairs, successful = [], []
+    accumulator = FieldAccumulator(spec)
     for result in results:
-        gold = get_pointer(result["reference"], spec["reference_path"])
+        accumulator.add(result)
+    return accumulator.summary()
+
+
+class FieldAccumulator:
+    def __init__(self, spec):
+        self.spec = spec
+        self.total, self.annotated = 0, 0
+        self.tp, self.fp, self.fn = Counter(), Counter(), Counter()
+        self.universe = set()
+        self.successful = [0, 0, 0]
+
+    def add(self, result):
+        self.total += 1
+        gold = get_pointer(result["reference"], self.spec["reference_path"])
         if gold is MISSING or gold is None:
-            continue
-        expected = labels(gold, spec.get("aliases"))
-        actual = get_pointer(result.get("output"), spec["output_path"])
-        pair = (expected, labels(actual, spec.get("aliases")))
-        pairs.append(pair)
-        if result["status"] == "success":
-            successful.append(pair)
-    universe = sorted(set().union(*(a | b for a, b in pairs))) if pairs else []
-    classes = []
-    for label in universe:
-        tp = sum(label in a and label in b for a, b in pairs)
-        fp = sum(label not in a and label in b for a, b in pairs)
-        fn = sum(label in a and label not in b for a, b in pairs)
-        classes.append(
-            {"label": label, "support": tp + fn, "tp": tp, "fp": fp, "fn": fn, **scores(tp, fp, fn)}
+            return
+        self.annotated += 1
+        expected = labels(gold, self.spec.get("aliases"))
+        actual = (
+            set()
+            if self.spec["name"] in result.get("field_errors", {})
+            else labels(
+                get_pointer(result.get("output"), self.spec["output_path"]),
+                self.spec.get("aliases"),
+            )
         )
-    tp, fp, fn = _counts(pairs)
-    macro = {}
-    for metric in ("precision", "recall", "f1"):
-        values = [c[metric] if c[metric] is not None else 0 for c in classes if c["support"]]
-        macro[metric] = float(np.mean(values)) if values else None
-    return {
-        "name": spec["name"],
-        "annotated": len(pairs),
-        "total": len(results),
-        "coverage": len(pairs) / len(results) if results else 0,
-        "tp": tp,
-        "fp": fp,
-        "fn": fn,
-        "micro": scores(tp, fp, fn),
-        "macro": macro,
-        "successful_micro": scores(*_counts(successful)),
-        "classes": classes,
-    }
+        additions = (expected | actual) - self.universe
+        if len(self.universe) + len(additions) > 10_000:
+            raise ValueError("Classification label budget exceeded (10,000 per field).")
+        self.universe.update(additions)
+        parts = (expected & actual, actual - expected, expected - actual)
+        for counter, part in zip((self.tp, self.fp, self.fn), parts, strict=True):
+            counter.update(part)
+        if result["status"] == "success":
+            self.successful = [n + len(p) for n, p in zip(self.successful, parts, strict=True)]
 
-
-def _counts(pairs):
-    return (
-        sum(len(a & b) for a, b in pairs),
-        sum(len(b - a) for a, b in pairs),
-        sum(len(a - b) for a, b in pairs),
-    )
+    def summary(self):
+        classes = []
+        for label in sorted(self.universe):
+            tp, fp, fn = self.tp[label], self.fp[label], self.fn[label]
+            classes.append(
+                {
+                    "label": label,
+                    "support": tp + fn,
+                    "tp": tp,
+                    "fp": fp,
+                    "fn": fn,
+                    "precision": tp / (tp + fp) if tp + fp else None,
+                    "recall": tp / (tp + fn) if tp + fn else None,
+                    "f1": 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None,
+                }
+            )
+        macro = {}
+        for metric in ("precision", "recall", "f1"):
+            values = [c[metric] or 0 for c in classes if c["support"]]
+            macro[metric] = sum(values) / len(values) if values else None
+        tp, fp, fn = self.tp.total(), self.fp.total(), self.fn.total()
+        return {
+            "name": self.spec["name"],
+            "annotated": self.annotated,
+            "total": self.total,
+            "coverage": self.annotated / self.total if self.total else 0,
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "micro": scores(tp, fp, fn),
+            "macro": macro,
+            "successful_micro": scores(*self.successful),
+            "classes": classes,
+        }

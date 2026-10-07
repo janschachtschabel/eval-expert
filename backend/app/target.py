@@ -4,13 +4,19 @@ import json
 from urllib.parse import urlsplit
 
 import httpx
-from jsonschema import validate
+from jsonschema import ValidationError, validate
 from referencing import Registry
 
 from .pointers import render_mapping
 from .schemas import check_schema
 
 DEFAULT_HOSTS = {"api.openai.com", "b-api.prod.openeduhub.net", "b-api.staging.openeduhub.net"}
+
+
+class ResponseValidationError(ValueError):
+    def __init__(self, output):
+        super().__init__("Response does not match the configured JSON schema.")
+        self.output = output
 
 
 def validate_url(url, settings):
@@ -83,7 +89,10 @@ async def call_target(service, input, settings, key="", transport=None):
     if service.get("response_schema"):
         check_schema(service["response_schema"])
         # Explicit empty registry prevents implicit, unbounded HTTP retrieval of $ref schemas.
-        validate(output, service["response_schema"], registry=Registry())
+        try:
+            validate(output, service["response_schema"], registry=Registry())
+        except ValidationError as error:
+            raise ResponseValidationError(output) from error
     return output
 
 
