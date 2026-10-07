@@ -1,0 +1,56 @@
+{
+  "short_csv_row": {
+    "status": 500
+  },
+  "schedule_preview_wrong_type": {
+    "status": 500
+  },
+  "missing_recompute_run": {
+    "status": 500
+  },
+  "wrong_plan_id_type": {
+    "status": 500
+  },
+  "stale_update": {
+    "first_version": 2,
+    "second_version": 3,
+    "first_change_lost": true
+  },
+  "custom_auth_header_public": {
+    "credential_in_public_catalog": true,
+    "viewer_can_read_credential": true
+  },
+  "delete_referenced_service": {
+    "start_after_delete_status": 422,
+    "plan_still_exists": true
+  },
+  "login_throttle": {
+    "same_name_attempt_11": 429,
+    "different_name_same_ip": 401,
+    "buckets": 2,
+    "buckets_after_unique_names": 14
+  },
+  "full_queue_schedule": {
+    "queued_count": 20,
+    "due_advanced_without_run": true,
+    "audit": "schedule.configuration_error"
+  },
+  "invalid_output_field": {
+    "status": "target_error",
+    "raw_output_lost": true
+  },
+  "run_list_loading": {
+    "total_runs": 221,
+    "listed": 200,
+    "snapshots_read_bytes": 20280200,
+    "response_bytes": 101800
+  },
+  "classification_time_seconds": {
+    "100": 0.179,
+    "1000": 1.764
+  },
+  "failed_worker": {
+    "health": 503,
+    "catalog_still_served": 200
+  }
+}

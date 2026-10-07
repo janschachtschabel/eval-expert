@@ -1,0 +1,8 @@
+{
+  "audited_seconds": 2.047443400020711,
+  "remediated_seconds": 0.01618510001571849,
+  "ratio": 126.50174531095234,
+  "cases": 1000,
+  "labels": 1000,
+  "identical_metrics": true
+}

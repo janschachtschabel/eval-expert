@@ -1,0 +1,9 @@
+{
+  "worker_exit_code": 1,
+  "automatic_restart": true,
+  "export_hash_preserved": true,
+  "backup_restore": true,
+  "encrypted_credentials_preserved": true,
+  "cases_restored": 12,
+  "image": "sha256:2758edef4db7fcc627baed255946319179b27c684967d778003fbb43e5ab8d8c"
+}

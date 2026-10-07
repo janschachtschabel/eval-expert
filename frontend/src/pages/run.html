@@ -1,0 +1,387 @@
+@if (run(); as r) {
+  <div class="page-heading">
+    <div>
+      <a class="back-link" routerLink="/runs">← {{ "runs" | t }}</a>
+      <h1>{{ r["snapshot"]["plan"]["name"] }}</h1>
+      <p>
+        {{ r["created"] | date: "dd.MM.yyyy HH:mm" }} · {{ "version" | t }}
+        {{ r["snapshot"]["plan"]["version"] }}
+      </p>
+      <span class="badge" [class.success]="r['status'] === 'completed'">{{
+        r["status"] | t
+      }}</span>
+      @if (r["snapshot"]["dataset"]["demo"]) {
+        <span class="badge amber">{{ "demoOnly" | t }}</span>
+      }
+    </div>
+    <div class="heading-actions">
+      @if (api.canEdit()) {
+        @if (active()) {
+          <button mat-stroked-button (click)="stop()">
+            {{ "stop" | t }}
+          </button>
+        } @else {
+          <button mat-stroked-button (click)="rerun()" [disabled]="busy()">
+            {{ "rerun" | t }}
+          </button>
+        }
+      }
+    </div>
+  </div>
+  @if (active()) {
+    <section class="surface progress-panel" role="status">
+      <div class="section-heading">
+        <h2>{{ "progress" | t }}</h2>
+        <span>{{ r["progress"] }}/{{ r["total"] }} {{ "cases" | t }}</span>
+      </div>
+      <mat-progress-bar
+        mode="determinate"
+        [value]="(r['progress'] / r['total']) * 100"
+        [attr.aria-label]="'progress' | t"
+      ></mat-progress-bar>
+    </section>
+  } @else if (r["status"] !== "completed") {
+    <p class="alert">{{ "incomplete" | t }} {{ r["summary"]?.error }}</p>
+  }
+  @if (r["parent_id"]) {
+    <p class="hint">{{ "savedResponses" | t }}</p>
+  }
+  <div class="metric-grid">
+    <article class="metric-card accent">
+      <p>{{ "technical" | t }}</p>
+      <strong>{{ pct(r["summary"]?.target_success_rate) }}</strong
+      ><span
+        >{{ r["summary"]?.target_errors || 0 }} {{ "targetError" | t }}</span
+      >
+    </article>
+    <article class="metric-card">
+      <p>{{ "cases" | t }}</p>
+      <strong
+        >{{ r["progress"] }}<small> / {{ r["total"] }}</small></strong
+      ><span>{{ "progress" | t }}</span>
+    </article>
+    <article class="metric-card">
+      <p>{{ "meanScore" | t }}</p>
+      <strong>{{ pct(r["summary"]?.judge?.mean_score) }}</strong
+      ><span
+        >{{ r["summary"]?.judge?.valid || 0 }} /
+        {{ r["summary"]?.judge?.expected || 0 }} {{ "verdicts" | t }}</span
+      >
+    </article>
+    <article class="metric-card">
+      <p>{{ "tokens" | t }}</p>
+      <strong>{{
+        (r["summary"]?.usage?.prompt_tokens || 0) +
+          (r["summary"]?.usage?.completion_tokens || 0) | number
+      }}</strong
+      ><span
+        >{{ r["summary"]?.usage?.requests || 0 }} {{ "requests" | t }}</span
+      >
+    </article>
+  </div>
+  @if (r["summary"]?.reference?.length) {
+    <section class="surface result-section">
+      <div class="section-heading">
+        <h2>{{ "reference" | t }}</h2>
+        <span class="badge">scikit-learn</span>
+      </div>
+      <p class="hint">{{ "technicalHelp" | t }}</p>
+      <div
+        class="table-scroll"
+        tabindex="0"
+        [attr.aria-label]="'fieldTable' | t"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>{{ "fieldName" | t }}</th>
+              <th>{{ "precision" | t }}</th>
+              <th>{{ "recall" | t }}</th>
+              <th>{{ "f1" | t }}</th>
+              <th>{{ "macro" | t }} F1</th>
+              <th>{{ "annotation" | t }}</th>
+              <th>{{ "counts" | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (field of r["summary"]["reference"]; track field["name"]) {
+              <tr>
+                <th scope="row">{{ field["name"] }}</th>
+                <td>{{ pct(field["micro"]["precision"]) }}</td>
+                <td>{{ pct(field["micro"]["recall"]) }}</td>
+                <td>
+                  <span class="score-value">{{
+                    pct(field["micro"]["f1"])
+                  }}</span
+                  ><span class="score-track" aria-hidden="true"
+                    ><span
+                      [style.width.%]="(field['micro']['f1'] || 0) * 100"
+                    ></span
+                  ></span>
+                </td>
+                <td>{{ pct(field["macro"]["f1"]) }}</td>
+                <td>
+                  {{ field["annotated"] }}/{{ field["total"] }}
+                  <small>{{ pct(field["coverage"]) }}</small>
+                </td>
+                <td>
+                  {{ field["tp"] }} / {{ field["fp"] }} / {{ field["fn"] }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @for (field of r["summary"]["reference"]; track field["name"]) {
+        <details
+          class="class-details"
+          (toggle)="toggleClasses($event, field['name'])"
+        >
+          <summary>{{ "labels" | t }} · {{ field["name"] }}</summary>
+          @if (classBusy() === field["name"]) {
+            <p role="status">{{ "loading" | t }}</p>
+          }
+          <div
+            class="table-scroll"
+            tabindex="0"
+            [attr.aria-label]="('labels' | t) + ' ' + field['name']"
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th>{{ "fieldName" | t }}</th>
+                  <th>{{ "support" | t }}</th>
+                  <th>{{ "precision" | t }}</th>
+                  <th>{{ "recall" | t }}</th>
+                  <th>{{ "f1" | t }}</th>
+                  <th>{{ "counts" | t }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (
+                  label of classPages()[field["name"]]?.items || [];
+                  track label["label"]
+                ) {
+                  <tr>
+                    <th scope="row">{{ label["label"] }}</th>
+                    <td>{{ label["support"] }}</td>
+                    <td>{{ pct(label["precision"]) }}</td>
+                    <td>{{ pct(label["recall"]) }}</td>
+                    <td>{{ pct(label["f1"]) }}</td>
+                    <td>
+                      {{ label["tp"] }}/{{ label["fp"] }}/{{ label["fn"] }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (classPages()[field["name"]]; as labels) {
+            <app-pager
+              [total]="labels.total"
+              [offset]="labels.offset"
+              [limit]="50"
+              [disabled]="classBusy() !== null"
+              (change)="loadClasses(field['name'], $event)"
+            />
+          }
+        </details>
+      }
+    </section>
+  }
+  <section class="surface result-section">
+    <div class="section-heading">
+      <h2>{{ "judge" | t }}</h2>
+      <span class="badge">DeepEval</span>
+    </div>
+    @if (!r["snapshot"]["criteria"].length) {
+      <p class="hint">{{ "noJudges" | t }}</p>
+    } @else {
+      <p>{{ "judgesHelp" | t }}</p>
+      <p>
+        {{ "expected" | t }}: {{ r["summary"]?.judge?.valid || 0 }} /
+        {{ r["summary"]?.judge?.expected || 0 }} ·
+        {{ r["summary"]?.judge?.errors || 0 }}
+        {{ "judgeError" | t }}
+      </p>
+    }
+  </section>
+  @if (history().length) {
+    <section class="surface result-section">
+      <h2>{{ "history" | t }}</h2>
+      <p class="hint">{{ "historyHelp" | t }}</p>
+      <mat-form-field
+        ><mat-label>{{ "fieldName" | t }}</mat-label
+        ><mat-select [(ngModel)]="selectedField">
+          @for (field of r["snapshot"]["plan"]["fields"]; track field.name) {
+            <mat-option [value]="field.name">{{ field.name }} · F1</mat-option>
+          }
+          @if (r["snapshot"]["criteria"].length) {
+            <mat-option value="__judge">{{ "meanScore" | t }}</mat-option>
+          }
+        </mat-select></mat-form-field
+      >
+      <svg
+        class="history-chart"
+        viewBox="0 0 600 185"
+        role="img"
+        [attr.aria-label]="'chart' | t"
+      >
+        <line x1="30" y1="155" x2="570" y2="155" stroke="#d5dfde" />
+        <line
+          x1="30"
+          y1="25"
+          x2="570"
+          y2="25"
+          stroke="#d5dfde"
+          stroke-dasharray="4"
+        />
+        <text x="2" y="30">1</text>
+        <text x="2" y="158">0</text>
+        <polyline
+          [attr.points]="line()"
+          fill="none"
+          stroke="#006b63"
+          stroke-width="3"
+        />
+        @for (p of points(); track p.id) {
+          <circle [attr.cx]="p.x" [attr.cy]="p.y" r="5" fill="#006b63" />
+          <text [attr.x]="p.x" [attr.y]="p.y - 10" text-anchor="middle">
+            {{ pct(p.value) }}
+          </text>
+        }
+      </svg>
+      <details>
+        <summary>
+          {{ "date" | t }} /
+          {{ (selectedField === "__judge" ? "meanScore" : "f1") | t }}
+        </summary>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ "date" | t }}</th>
+                <th>{{ "version" | t }}</th>
+                <th>
+                  {{ (selectedField === "__judge" ? "meanScore" : "f1") | t }}
+                </th>
+                <th>{{ "judge" | t }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (h of history(); track h["id"]) {
+                <tr>
+                  <td>
+                    <a [routerLink]="'/runs/' + h['id']">{{
+                      h["created"] | date: "dd.MM.yy HH:mm"
+                    }}</a>
+                  </td>
+                  <td>{{ h["plan_version"] }}</td>
+                  <td>{{ pct(value(h)) }}</td>
+                  <td>{{ pct(h["summary"]?.judge?.mean_score) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  }
+  <section class="surface result-section">
+    <h2>{{ "evidence" | t }}</h2>
+    <div class="table-scroll" tabindex="0" [attr.aria-label]="'evidence' | t">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>{{ "input" | t }}</th>
+            <th>{{ "status" | t }}</th>
+            <th>{{ "duration" | t }}</th>
+            <th>{{ "verdicts" | t }}</th>
+            <th>{{ "details" | t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of r["results"]; track row["case_id"]) {
+            <tr>
+              <th scope="row">{{ row["case_id"] }}</th>
+              <td class="case-title">
+                {{ row["input_preview"] || row["case_id"] }}
+              </td>
+              <td>
+                <span
+                  class="badge"
+                  [class.amber]="row['status'] !== 'success'"
+                  >{{ row["status"] | t }}</span
+                >
+              </td>
+              <td>{{ row["target_duration_ms"] || 0 }} ms</td>
+              <td>{{ row["judge_count"] || 0 }}</td>
+              <td>
+                <button
+                  mat-button
+                  (click)="inspect(row)"
+                  [disabled]="inspecting()"
+                  [attr.aria-label]="
+                    ('case' | t) +
+                    ' ' +
+                    row['case_id'] +
+                    ' ' +
+                    ('inspect' | t).toLowerCase()
+                  "
+                >
+                  {{ "inspect" | t }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pager
+      [total]="r['progress']"
+      [offset]="caseOffset()"
+      [disabled]="caseBusy()"
+      (change)="loadCases($event)"
+    />
+  </section>
+  <section class="surface result-section">
+    <h2>{{ "report" | t }}</h2>
+    <p>{{ "reportHelp" | t }}</p>
+    <div class="card-actions">
+      <a
+        mat-stroked-button
+        [href]="'/api/runs/' + r['id'] + '/export?format=csv'"
+        >{{ "csv" | t }}</a
+      ><a
+        mat-stroked-button
+        [href]="'/api/runs/' + r['id'] + '/export?format=json'"
+        >{{ "json" | t }}</a
+      >
+      <a
+        mat-flat-button
+        [href]="'/api/runs/' + r['id'] + '/report'"
+        target="_blank"
+        rel="noopener"
+        >{{ "report" | t }}</a
+      >
+      @if (r["status"] === "completed" && api.canEdit()) {
+        <button mat-button (click)="recompute()" [disabled]="busy()">
+          {{ "recompute" | t }}
+        </button>
+      }
+    </div>
+    <details>
+      <summary>{{ "snapshot" | t }}</summary>
+      <pre>{{ configuration() }}</pre>
+    </details>
+  </section>
+} @else if (loadError()) {
+  <section class="surface">
+    <p role="alert">{{ loadError() }}</p>
+    <button mat-stroked-button (click)="load()">{{ "retry" | t }}</button
+    ><a mat-button routerLink="/runs">{{ "runs" | t }}</a>
+  </section>
+} @else {
+  <p role="status">{{ "loading" | t }}</p>
+}

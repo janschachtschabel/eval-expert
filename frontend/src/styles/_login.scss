@@ -1,0 +1,60 @@
+.login-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  padding: 8vh 10vw;
+  gap: 9vw;
+  align-items: center;
+  background: #eef3ed;
+}
+.login-story h1 {
+  font-size: clamp(36px, 4vw, 58px);
+  letter-spacing: -2px;
+  line-height: 1.1;
+  max-width: 530px;
+}
+.login-story .eyebrow {
+  margin: 30px 0 20px;
+}
+.login-story p {
+  max-width: 420px;
+}
+.login-card {
+  background: white;
+  padding: 44px;
+  border-radius: 24px;
+  border: 1px solid #d5e2d7;
+}
+.login-card h2 {
+  font-size: 28px;
+}
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 28px;
+}
+.login-card button {
+  min-height: 48px;
+}
+.story-lines {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 110px;
+  margin-top: 40px;
+}
+.story-lines span {
+  width: 50px;
+  background: #d0e3d4;
+  border-radius: 10px 10px 0 0;
+  height: 42%;
+}
+.story-lines span:nth-child(2) {
+  height: 72%;
+  background: #9ecbb4;
+}
+.story-lines span:nth-child(3) {
+  height: 100%;
+  background: #006b63;
+}

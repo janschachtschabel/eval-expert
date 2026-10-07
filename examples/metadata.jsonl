@@ -1,0 +1,3 @@
+{"id":"one","input":{"title":"Brüche verstehen","description":"Interaktive Aufgaben zu Brüchen.","source":"Geprüfter Quelltext: Einführung in die Bruchrechnung."},"reference":{"subject":["math"],"educational_level":["primary"]}}
+{"id":"two","input":{"title":"Energie und Strom","description":"Experimente zu Stromkreisen.","source":"Geprüfter Quelltext: Physikalische Experimente."},"reference":{"subject":["physics"],"educational_level":["secondary"]}}
+{"id":"three","input":{"title":"Klima und Wetter","description":"Wetterdaten vergleichen."},"reference":{"subject":["geography"],"educational_level":["secondary"]}}

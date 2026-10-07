@@ -1,0 +1,53 @@
+{
+  "axe": [
+    {
+      "page": "login",
+      "violations": []
+    },
+    {
+      "page": "/",
+      "violations": []
+    },
+    {
+      "page": "/services",
+      "violations": []
+    },
+    {
+      "page": "/datasets",
+      "violations": []
+    },
+    {
+      "page": "/criteria",
+      "violations": []
+    },
+    {
+      "page": "/providers",
+      "violations": []
+    },
+    {
+      "page": "/plans",
+      "violations": []
+    },
+    {
+      "page": "/runs",
+      "violations": []
+    },
+    {
+      "page": "/schedules",
+      "violations": []
+    },
+    {
+      "page": "/users",
+      "violations": []
+    }
+  ],
+  "errors": [],
+  "mobile_menu": {
+    "toggle_covered_by_navigation": true,
+    "still_open_after_escape": true,
+    "close_button_count": 0
+  },
+  "pending_demo_navigation": {
+    "destination": "/plans"
+  }
+}
