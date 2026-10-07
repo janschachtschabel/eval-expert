@@ -42,7 +42,7 @@ jobs:
           EVAL_SECURE_COOKIE: 'false'
           EVAL_DATA_DIR: data/ci
         run: |
-          uv run --project backend uvicorn app.main:create_app --factory --app-dir backend --host 127.0.0.1 --port 8117 > /tmp/eval-server.log 2>&1 &
+          uv run --project backend uvicorn browser_app:create_test_app --factory --app-dir backend/tests --host 127.0.0.1 --port 8117 > /tmp/eval-server.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8117/api/health && break; sleep 1; done
       - run: npm run test:e2e
         working-directory: frontend
