@@ -133,8 +133,14 @@
         </table>
       </div>
       @for (field of r["summary"]["reference"]; track field["name"]) {
-        <details class="class-details">
+        <details
+          class="class-details"
+          (toggle)="toggleClasses($event, field['name'])"
+        >
           <summary>{{ "labels" | t }} · {{ field["name"] }}</summary>
+          @if (classBusy() === field["name"]) {
+            <p role="status">{{ "loading" | t }}</p>
+          }
           <div
             class="table-scroll"
             tabindex="0"
@@ -152,7 +158,10 @@
                 </tr>
               </thead>
               <tbody>
-                @for (label of field["classes"]; track label["label"]) {
+                @for (
+                  label of classPages()[field["name"]]?.items || [];
+                  track label["label"]
+                ) {
                   <tr>
                     <th scope="row">{{ label["label"] }}</th>
                     <td>{{ label["support"] }}</td>
@@ -167,6 +176,15 @@
               </tbody>
             </table>
           </div>
+          @if (classPages()[field["name"]]; as labels) {
+            <app-pager
+              [total]="labels.total"
+              [offset]="labels.offset"
+              [limit]="50"
+              [disabled]="classBusy() !== null"
+              (change)="loadClasses(field['name'], $event)"
+            />
+          }
         </details>
       }
     </section>
@@ -294,18 +312,16 @@
                 <span
                   class="badge"
                   [class.amber]="row['status'] !== 'success'"
-                  >{{
-                    (row["status"] === "success" ? "completed" : "targetError")
-                      | t
-                  }}</span
+                  >{{ row["status"] | t }}</span
                 >
               </td>
               <td>{{ row["target_duration_ms"] || 0 }} ms</td>
-              <td>{{ row["judges"]?.length || 0 }}</td>
+              <td>{{ row["judge_count"] || 0 }}</td>
               <td>
                 <button
                   mat-button
                   (click)="inspect(row)"
+                  [disabled]="inspecting()"
                   [attr.aria-label]="
                     ('case' | t) +
                     ' ' +
@@ -322,6 +338,12 @@
         </tbody>
       </table>
     </div>
+    <app-pager
+      [total]="r['progress']"
+      [offset]="caseOffset()"
+      [disabled]="caseBusy()"
+      (change)="loadCases($event)"
+    />
   </section>
   <section class="surface result-section">
     <h2>{{ "report" | t }}</h2>

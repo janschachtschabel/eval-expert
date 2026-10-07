@@ -15,6 +15,19 @@
     <h2 id="editor-title" tabindex="-1">
       {{ (f["id"] ? "edit" : "new") | t }}
     </h2>
+    @if (conflict()) {
+      <div class="surface-subtle" role="alert">
+        <p>{{ "conflictHelp" | t }}</p>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="open(f)"
+          [disabled]="busy()"
+        >
+          {{ "reloadCurrent" | t }}
+        </button>
+      </div>
+    }
     <form (ngSubmit)="save()">
       <div class="form-grid">
         <mat-form-field
@@ -492,7 +505,7 @@
       <div class="form-actions">
         <button mat-flat-button type="submit" [disabled]="busy()">
           {{ "save" | t }}</button
-        ><button mat-button type="button" (click)="editing.set(null)">
+        ><button mat-button type="button" (click)="cancelEditor()">
           {{ "cancel" | t }}
         </button>
       </div>
@@ -534,7 +547,7 @@
             }
             @case ("datasets") {
               <p class="card-number">
-                {{ item["cases"]?.length }} <span>{{ "cases" | t }}</span>
+                {{ item["case_count"] }} <span>{{ "cases" | t }}</span>
               </p>
             }
             @case ("criteria") {
@@ -554,6 +567,9 @@
             }
             @case ("schedules") {
               <p class="mono">{{ item["cron"] }} · {{ item["timezone"] }}</p>
+              @if (item["last_error"]) {
+                <p class="error">{{ item["last_error"] | t }}</p>
+              }
               @if (item["next_due"] && item["enabled"]) {
                 <p>
                   {{ "nextDue" | t }}:

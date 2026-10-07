@@ -9,13 +9,17 @@ import { UI, pretty, percent } from "../ui";
     </h2>
     <mat-dialog-content>
       <span class="badge" [class.amber]="data['status'] !== 'success'">{{
-        (data["status"] === "success" ? "completed" : "targetError") | t
+        data["status"] | t
       }}</span>
       @if (data["reused_response"]) {
         <p>{{ "savedResponses" | t }}</p>
       }
       @if (data["error"]) {
         <p class="error">{{ data["error"] }}</p>
+      }
+      @if (data["status"] === "field_error") {
+        <h3>{{ "fieldErrors" | t }}</h3>
+        <pre>{{ pretty(data["field_errors"]) }}</pre>
       }
       <div class="case-json-grid">
         @for (key of ["input", "output", "reference"]; track key) {

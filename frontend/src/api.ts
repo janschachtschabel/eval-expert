@@ -1,5 +1,19 @@
 import { Injectable, signal } from "@angular/core";
 export type Item = Record<string, any>;
+export interface Page<T = Item> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 @Injectable({ providedIn: "root" })
 export class Api {
   user = signal<Item | null>(null);
@@ -23,7 +37,8 @@ export class Api {
       const value = await response.json().catch(() => ({}));
       if (response.status === 401 && path !== "/auth/login")
         this.user.set(null);
-      throw new Error(
+      throw new ApiError(
+        response.status,
         typeof value.detail === "string"
           ? value.detail
           : "HTTP " + response.status,

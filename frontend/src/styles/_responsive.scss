@@ -23,6 +23,11 @@
   }
 }
 @media (max-width: 800px) {
+  .mobile-nav-close {
+    display: inline-flex !important;
+    align-self: flex-start;
+    margin-block-end: 16px;
+  }
   .app-shell {
     display: block;
   }

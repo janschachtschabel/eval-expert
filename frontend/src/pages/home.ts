@@ -1,6 +1,6 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { Router, RouterLink } from "@angular/router";
-import { Api, Item } from "../api";
+import { Api, Item, Page } from "../api";
 import { UI, percent } from "../ui";
 @Component({
   standalone: true,
@@ -33,7 +33,7 @@ import { UI, percent } from "../ui";
       }
       <a class="metric-card accent" routerLink="/runs"
         ><p>{{ "runs" | t }}</p>
-        <strong>{{ runs().length }}</strong
+        <strong>{{ totalRuns() }}</strong
         ><span>{{ "evidence" | t }}</span></a
       >
     </div>
@@ -89,6 +89,8 @@ export class Home {
   router = inject(Router);
   counts = signal<Item>({});
   runs = signal<Item[]>([]);
+  totalRuns = signal(0);
+  private destroyed = false;
   loading = signal(true);
   busy = signal(false);
   pct = percent;
@@ -99,6 +101,9 @@ export class Home {
     { title: "stepRun", help: "stepRunHelp", path: "/runs" },
   ];
   constructor() {
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+    });
     Promise.all(
       ["services", "datasets", "plans"].map(async (key) => [
         key,
@@ -108,8 +113,11 @@ export class Home {
       .then((values) => this.counts.set(Object.fromEntries(values)))
       .catch((e) => this.api.fail(e));
     this.api
-      .request<Item[]>("/runs")
-      .then((r) => this.runs.set(r))
+      .request<Page>("/runs/page?limit=5")
+      .then((r) => {
+        this.runs.set(r.items);
+        this.totalRuns.set(r.total);
+      })
       .catch((e) => this.api.fail(e))
       .finally(() => this.loading.set(false));
   }
@@ -117,6 +125,7 @@ export class Home {
     this.busy.set(true);
     try {
       await this.api.request("/demo", "POST");
+      if (this.destroyed) return;
       await this.router.navigateByUrl("/plans");
     } catch (e) {
       this.api.fail(e);

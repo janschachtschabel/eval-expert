@@ -6,6 +6,16 @@
 .workspace {
   min-width: 0;
 }
+.mobile-nav-close {
+  display: none !important;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block-start: 16px;
+}
 aside {
   position: sticky;
   top: 0;

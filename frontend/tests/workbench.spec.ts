@@ -1,19 +1,9 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { waitForApplication } from "./support";
 
 test.beforeAll(async ({ request }) => {
-  await expect
-    .poll(
-      async () => {
-        try {
-          return (await request.get("/api/health")).status();
-        } catch {
-          return 0;
-        }
-      },
-      { timeout: 30000 },
-    )
-    .toBe(200);
+  await waitForApplication(request);
 });
 
 test("schedule presets preview future dates and retain the configuration", async ({
@@ -27,6 +17,7 @@ test("schedule presets preview future dates and retain the configuration", async
     .fill(process.env["EVAL_TEST_PASSWORD"] || "Test-password-for-browser!");
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   await page.getByRole("button", { name: "Demo einrichten" }).click();
+  await expect(page).toHaveURL(/\/plans$/);
   await page.getByRole("link", { name: "Zeitpläne", exact: true }).click();
   await page.getByRole("button", { name: "Neu anlegen" }).click();
   await page.getByLabel("Name", { exact: true }).fill(name);
@@ -95,8 +86,14 @@ test("local login, reference run, evidence, export and responsive navigation", a
     page.getByRole("heading", { name: "Prüfprofile", exact: true }),
   ).toBeVisible();
   await page
+    .getByRole("article")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Demo · Metadaten prüfen",
+        exact: true,
+      }),
+    })
     .getByRole("button", { name: "Prüfung starten", exact: true })
-    .first()
     .click();
   await expect(
     page.getByText("Abgeschlossen", { exact: true }).first(),

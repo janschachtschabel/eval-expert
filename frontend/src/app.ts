@@ -1,4 +1,11 @@
-import { Component, inject, signal } from "@angular/core";
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  inject,
+  signal,
+} from "@angular/core";
 import {
   Router,
   RouterLink,
@@ -57,7 +64,19 @@ import { UI } from "./ui";
     } @else {
       <a class="skip-link" href="#main">{{ "skip" | t }}</a>
       <div class="app-shell">
-        <aside [class.open]="navOpen()" aria-label="Navigation">
+        <aside
+          id="app-navigation"
+          [class.open]="navOpen()"
+          aria-label="Navigation"
+        >
+          <button
+            mat-button
+            class="mobile-nav-close"
+            id="navigation-close"
+            (click)="closeNavigation()"
+          >
+            {{ "closeMenu" | t }}
+          </button>
           <a class="brand" routerLink="/" (click)="navOpen.set(false)"
             ><span class="brand-mark small">E<span>·</span></span>
             <span
@@ -95,7 +114,9 @@ import { UI } from "./ui";
           <header class="mobile-header">
             <button
               mat-button
-              (click)="navOpen.set(!navOpen())"
+              #navigationToggle
+              (click)="openNavigation()"
+              aria-controls="app-navigation"
               [attr.aria-expanded]="navOpen()"
             >
               {{ "menu" | t }}</button
@@ -115,6 +136,8 @@ import { UI } from "./ui";
     }`,
 })
 export class App {
+  @ViewChild("navigationToggle", { read: ElementRef })
+  navigationToggle?: ElementRef<HTMLButtonElement>;
   api = inject(Api);
   router = inject(Router);
   loading = signal(true);
@@ -138,6 +161,18 @@ export class App {
   ];
   constructor() {
     this.api.restore().finally(() => this.loading.set(false));
+  }
+  openNavigation() {
+    this.navOpen.set(true);
+    requestAnimationFrame(() =>
+      document.getElementById("navigation-close")?.focus(),
+    );
+  }
+  @HostListener("document:keydown.escape")
+  closeNavigation() {
+    if (!this.navOpen()) return;
+    this.navOpen.set(false);
+    this.navigationToggle?.nativeElement.focus();
   }
   async login() {
     this.busy.set(true);

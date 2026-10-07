@@ -1,10 +1,11 @@
 import { Component, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
-import { Api, Item } from "../api";
+import { Api, Item, Page } from "../api";
 import { UI, percent } from "../ui";
+import { Pager } from "../pager";
 @Component({
   standalone: true,
-  imports: [...UI, RouterLink],
+  imports: [...UI, RouterLink, Pager],
   template: `
     <div class="page-heading">
       <div>
@@ -54,18 +55,38 @@ import { UI, percent } from "../ui";
         }
       </div>
     }
+    <app-pager
+      [total]="total()"
+      [offset]="offset()"
+      [limit]="50"
+      [disabled]="loading()"
+      (change)="load($event)"
+    />
   `,
 })
 export class RunsPage {
   api = inject(Api);
   runs = signal<Item[]>([]);
   loading = signal(true);
+  total = signal(0);
+  offset = signal(0);
   pct = percent;
   constructor() {
-    this.api
-      .request<Item[]>("/runs")
-      .then((r) => this.runs.set(r))
-      .catch((e) => this.api.fail(e))
-      .finally(() => this.loading.set(false));
+    this.load();
+  }
+  async load(offset = 0) {
+    this.loading.set(true);
+    try {
+      const page = await this.api.request<Page>(
+        "/runs/page?limit=50&offset=" + offset,
+      );
+      this.runs.set(page.items);
+      this.total.set(page.total);
+      this.offset.set(page.offset);
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      this.loading.set(false);
+    }
   }
 }

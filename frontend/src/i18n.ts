@@ -1,6 +1,21 @@
 import { Pipe, PipeTransform } from "@angular/core";
 export const de: Record<string, string> = {
   case: "Fall",
+  closeMenu: "Navigation schließen",
+  previousPage: "Vorherige Seite",
+  nextPage: "Nächste Seite",
+  totalCount: "Insgesamt",
+  reloadCurrent: "Aktuelle Fassung laden",
+  conflictHelp:
+    "Dieser Eintrag wurde inzwischen geändert. Deine Eingaben bleiben hier erhalten. Beim Laden der aktuellen Fassung werden sie ersetzt.",
+  queue_full: "Warteschlange voll. Der fällige Termin wird erneut versucht.",
+  configuration_error:
+    "Der Zeitplan kann nicht ausgeführt werden. Prüfprofil und Verknüpfungen prüfen.",
+  success: "Abgeschlossen",
+  field_error: "Feldfehler",
+  schema_error: "Schemafehler",
+  target_error: "Dienstfehler",
+  fieldErrors: "Fehlerhafte Felder",
   brand: "Eval Expert",
   tagline: "Qualität sichtbar machen",
   overview: "Überblick",

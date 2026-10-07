@@ -1,7 +1,7 @@
 import { DRAFTS } from "./drafts";
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
-import { Api, Item } from "../api";
+import { Api, ApiError, Item } from "../api";
 import { UI, pretty } from "../ui";
 import { tr } from "../i18n";
 
@@ -20,6 +20,10 @@ export class CatalogPage {
   lookups = signal<Record<string, Item[]>>({});
   loading = signal(true);
   busy = signal(false);
+  conflict = signal(false);
+  private editorGeneration = 0;
+  private listGeneration = 0;
+  private destroyed = false;
   operations = signal<Item[]>([]);
   extra = signal("");
   openapiUrl = "";
@@ -42,43 +46,75 @@ export class CatalogPage {
     schedules: "scheduleHelp",
   };
   constructor() {
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.editorGeneration++;
+      this.listGeneration++;
+    });
     this.route.data.subscribe((data) => {
+      this.cancelEditor();
       this.kind.set(data["kind"]);
-      this.editing.set(null);
       this.extra.set("");
       this.load();
     });
   }
   async load() {
+    const kind = this.kind();
+    const generation = ++this.listGeneration;
+    const current = () =>
+      !this.destroyed &&
+      generation === this.listGeneration &&
+      kind === this.kind();
     this.loading.set(true);
     try {
-      this.items.set(await this.api.request("/catalog/" + this.kind()));
+      const items = await this.api.request("/catalog/" + kind);
+      if (!current()) return;
+      this.items.set(items);
       const keys = ["services", "datasets", "criteria", "providers", "plans"];
-      this.lookups.set(
-        Object.fromEntries(
-          await Promise.all(
-            keys.map(async (key) => [
-              key,
-              await this.api.request("/catalog/" + key),
-            ]),
-          ),
+      const lookups = Object.fromEntries(
+        await Promise.all(
+          keys.map(async (key) => [
+            key,
+            await this.api.request("/catalog/" + key),
+          ]),
         ),
       );
+      if (current()) this.lookups.set(lookups);
     } catch (e) {
-      this.api.fail(e);
+      if (current()) this.api.fail(e);
     } finally {
-      this.loading.set(false);
+      if (current()) this.loading.set(false);
     }
+  }
+  cancelEditor() {
+    this.editorGeneration++;
+    this.editing.set(null);
+    this.conflict.set(false);
+    this.busy.set(false);
   }
   permitted() {
     return ["services", "providers"].includes(this.kind())
       ? this.api.isAdmin()
       : this.api.canEdit();
   }
-  open(item?: Item) {
-    const value = structuredClone(
-      item || { name: "", description: "", ...DRAFTS[this.kind()] },
-    );
+  async open(item?: Item) {
+    const kind = this.kind();
+    const generation = ++this.editorGeneration;
+    this.busy.set(true);
+    try {
+      const value = item
+        ? await this.api.request<Item>("/catalog/" + kind + "/" + item["id"])
+        : { name: "", description: "", ...structuredClone(DRAFTS[kind]) };
+      if (this.destroyed || generation !== this.editorGeneration) return;
+      this.applyEditor(value);
+      this.conflict.set(false);
+    } catch (e) {
+      this.api.fail(e);
+    } finally {
+      if (generation === this.editorGeneration) this.busy.set(false);
+    }
+  }
+  applyEditor(value: Item) {
     this.mapping = pretty(value["mapping"] || { $input: "" });
     this.schema = value["response_schema"]
       ? pretty(value["response_schema"])
@@ -109,6 +145,9 @@ export class CatalogPage {
   async save() {
     const form = this.editing();
     if (!form) return;
+    const generation = this.editorGeneration;
+    const current = () =>
+      !this.destroyed && generation === this.editorGeneration;
     this.busy.set(true);
     try {
       const value = structuredClone(form);
@@ -141,12 +180,15 @@ export class CatalogPage {
       const path =
         "/catalog/" + this.kind() + (value["id"] ? "/" + value["id"] : "");
       await this.api.request(path, value["id"] ? "PUT" : "POST", value);
+      if (!current()) return;
       this.editing.set(null);
       await this.load();
     } catch (e) {
-      this.api.fail(e);
+      if (!current()) return;
+      if (e instanceof ApiError && e.status === 409) this.conflict.set(true);
+      else this.api.fail(e);
     } finally {
-      this.busy.set(false);
+      if (current()) this.busy.set(false);
     }
   }
   addField() {
@@ -308,8 +350,8 @@ export class CatalogPage {
   count(item: Item) {
     return (
       this.lookups()["datasets"]?.find((d) => d["id"] === item["dataset_id"])?.[
-        "cases"
-      ]?.length || 0
+        "case_count"
+      ] || 0
     );
   }
 }
