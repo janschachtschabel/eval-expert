@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@angular/build": "21.2.25",
-    "@angular/cli": "21.2.25",
+    "@angular/cli": "21.2.26",
     "@angular/compiler-cli": "21.2.25",
     "@axe-core/playwright": "4.11.1",
     "@playwright/test": "1.58.2",

@@ -18,11 +18,16 @@ jobs:
           version: '0.7.13'
           python-version: '3.12'
       - run: uv sync --frozen --project backend
+      - run: uv tool run --from pip-audit==2.10.1 pip-audit --path backend/.venv/lib/python3.12/site-packages
       - run: uv run --project backend ruff check backend/app backend/tests
       - run: uv run --project backend ruff format --check backend/app backend/tests
       - run: uv run pytest -q
         working-directory: backend
       - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - run: npm audit --audit-level=high
+        working-directory: frontend
+      - run: npx prettier --check src tests
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
