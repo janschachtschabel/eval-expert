@@ -75,10 +75,16 @@ immutable original preview. UI and API pagination changes ship together.
 
 ## Progress
 
-- [ ] SEC-01 / SEC-02
-- [ ] COR-01 / DB-01 / DB-02 / API-01
-- [ ] COR-02 / PERF-02
-- [ ] PERF-01 / OPS-01
-- [ ] TEST-01 / UX-01
-- [ ] DEP-01
-- [ ] Independent review and final verification
+- [x] SEC-01 / SEC-02
+- [x] COR-01 / DB-01 / DB-02 / API-01
+- [x] COR-02 / PERF-02
+- [x] PERF-01 / OPS-01
+- [x] TEST-01 / UX-01
+- [x] DEP-01
+- [x] Independent review and final verification
+
+Closure evidence: docs/audits/2026-10-07-remediation.md. The read models include
+paginated per-label scores as well as case pages; SQLite upgrades to schema 3.
+Frontend regressions additionally cover cancelled/replaced editors and two
+delayed case-page responses spanning terminal status. Live provider/Hostinger
+acceptance remains outside this technical correction verification.

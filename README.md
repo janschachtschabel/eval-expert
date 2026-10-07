@@ -50,7 +50,7 @@ Use a **VPS with Docker Manager**, not ordinary shared web hosting. The standalo
 a pinned Git tag as its build context, so it needs no pre-uploaded source or local `.env` file:
 
 ```text
-https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-06/deploy/docker-compose.hostinger.yml
+https://raw.githubusercontent.com/janschachtschabel/eval-expert/preview-2026-10-07/deploy/docker-compose.hostinger.yml
 ```
 
 In Docker Manager, create a Compose project from that URL. Review the Compose environment and set:
@@ -230,6 +230,9 @@ scrubs public history and vacuums freed database pages. Keep `EVAL_SECRET_KEY` u
 Back up the complete stopped volume and secret key before upgrading; rollback restores that
 backup together with the previous immutable image/tag. Do not run the older app against an
 upgraded database.
+
+The audit correction report is in [docs/audits/2026-10-07-remediation.md](docs/audits/2026-10-07-remediation.md).
+The October 6 preview remains immutable; the October 7 preview includes these corrections.
 
 `EVAL_ADMIN_PASSWORD` is used only to initialize an empty database. Changing it later does not
 change an existing account. An operator with access to the container can reset a password without
