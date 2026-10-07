@@ -82,7 +82,7 @@ async def remote(request):
                         }
                     }
                 ],
-                "usage": {"prompt_tokens": 40, "completion_tokens": 15},
+                "usage": {"prompt_tokens": 400, "completion_tokens": 150},
             },
         )
     return httpx.Response(503)

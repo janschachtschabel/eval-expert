@@ -153,6 +153,11 @@ test("all nine views support a complete URL evaluation, evidence, repeat runs, s
     expect(original.summary.judge.valid).toBe(4);
     expect(original.summary.judge.expected).toBe(5);
     await expect(
+      page
+        .getByRole("article")
+        .filter({ has: page.getByText("Tokenverbrauch", { exact: true }) }),
+    ).toContainText("2.200");
+    await expect(
       page.locator('.table-scroll[aria-label="Einzelergebnisse"]'),
     ).toContainText(cases[0].input.url);
     await inspectLayout(page);
